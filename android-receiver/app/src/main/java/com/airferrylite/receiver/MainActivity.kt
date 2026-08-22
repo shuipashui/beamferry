@@ -143,7 +143,6 @@ class MainActivity : AppCompatActivity() {
     private var completedSessionDurationMs = -1L
     private var softDecoderRecoverAttempted = false
     private var lastSoftRecoverAt = 0L
-    private var halRecoveryRestartAttempted = false
     private var receiveSessionFromContinue = false
     private var scanSessionStartedAt = 0L
     private var cameraBoundAt = 0L
@@ -254,7 +253,6 @@ class MainActivity : AppCompatActivity() {
                     lastStatsAt = SystemClock.elapsedRealtime()
                     recoverBurst = 0
                     maybeSoftDecoderRecover(stats)
-                    maybeRestartForHalEmptyBurst(stats)
                     renderDiagnostics()
                 }
             }
@@ -309,6 +307,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         receiveSessionFromContinue = false
+        skipHalWaitOnBeginReceive = true
         beginReceive()
     }
 
@@ -370,10 +369,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun consumeAutostartScan(): Boolean {
         val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-        val fromPrefs = prefs.getBoolean(PREF_AUTOSTART_SCAN, false)
         val fromIntent = intent.getBooleanExtra(EXTRA_AUTOSTART_SCAN, false)
-        if (fromPrefs) prefs.edit().putBoolean(PREF_AUTOSTART_SCAN, false).commit()
-        return fromPrefs || fromIntent
+        if (prefs.getBoolean(PREF_AUTOSTART_SCAN, false)) {
+            prefs.edit().remove(PREF_AUTOSTART_SCAN).commit()
+        }
+        return fromIntent
     }
 
     private fun beginReceive() {
@@ -399,7 +399,6 @@ class MainActivity : AppCompatActivity() {
     private fun launchReceiveAfterHalWait() {
         softDecoderRecoverAttempted = false
         lastSoftRecoverAt = 0L
-        halRecoveryRestartAttempted = false
         if (::frameAnalyzer.isInitialized) {
             frameAnalyzer.resetSession()
             frameAnalyzer.setAnalysisIdle(false)
@@ -460,44 +459,6 @@ class MainActivity : AppCompatActivity() {
             imageAnalysis?.setAnalyzer(cameraExecutor, frameAnalyzer)
             frameAnalyzer.setAnalysisIdle(false)
         }, 800L)
-    }
-
-    private fun maybeRestartForHalEmptyBurst(stats: ScanStats) {
-        if (!cameraStarted || processRestarting || halRecoveryRestartAttempted) return
-        if (inHalRecoveryWarmup()) return
-        // First open / still aiming: empty scans are normal. Killing the process
-        // shows the bind countdown ~5s after 「接收文件」 (0.8.87).
-        if (highUniqueFrameCount == 0L) return
-        if (highUniqueFrameCount >= 5 || lastHighSolved >= 20) return
-        val lastHalRecovery = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-            .getLong(PREF_LAST_HAL_RECOVERY_MS, 0L)
-        if (System.currentTimeMillis() - lastHalRecovery < HAL_RECOVERY_COOLDOWN_MS) return
-        if (stats.submittedFrames < HAL_EMPTY_BURST_MIN_FRAMES) return
-        val emptyRatio = stats.emptyDecodes.toDouble() / stats.submittedFrames.toDouble()
-        if (emptyRatio < HAL_EMPTY_BURST_RATIO) return
-        if (highUniqueFrameCount >= HAL_EMPTY_BURST_MAX_UNIQUE) return
-        halRecoveryRestartAttempted = true
-        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-            .edit()
-            .putLong(PREF_LAST_HAL_RECOVERY_MS, System.currentTimeMillis())
-            .commit()
-        restartScanForHalRecovery()
-    }
-
-    private fun restartScanForHalRecovery() {
-        if (processRestarting) return
-        processRestarting = true
-        getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
-            .edit()
-            .putBoolean(PREF_AUTOSTART_SCAN, true)
-            .putLong(PREF_AUTOSTART_BIND_DELAY_OVERRIDE_MS, CAMERA_HAL_COOLDOWN_MS)
-            .commit()
-        showRestarting()
-        statusText.text = "相机未就绪，正在恢复"
-        watchdog.postDelayed({
-            markCameraReleased()
-            restartProcessForScan()
-        }, PROCESS_RESTART_DELAY_MS)
     }
 
     private fun showIdle() {
@@ -1202,7 +1163,6 @@ class MainActivity : AppCompatActivity() {
         private const val PREF_AUTOSTART_BIND_DELAY_OVERRIDE_MS = "autostart_bind_delay_ms"
         private const val PREF_CAMERA_HELD = "camera_held"
         private const val PREF_LAST_CAMERA_RELEASE_MS = "camera_release_ms"
-        private const val PREF_LAST_HAL_RECOVERY_MS = "last_hal_recovery_ms"
         private const val EXTRA_AUTOSTART_SCAN = "autostart_scan"
         private const val PROCESS_RESTART_DELAY_MS = 2000L
         private const val AUTOSTART_BIND_DELAY_MS = 2000L
@@ -1210,12 +1170,8 @@ class MainActivity : AppCompatActivity() {
         private const val CAMERA_HAL_COOLDOWN_MS = 2000L
         private const val ANALYZER_SETTLE_MS = 1200L
         private const val CONTINUE_ANALYZER_SETTLE_MS = 500L
-        private const val HAL_EMPTY_BURST_MIN_FRAMES = 250L
-        private const val HAL_EMPTY_BURST_RATIO = 0.80
-        private const val HAL_EMPTY_BURST_MAX_UNIQUE = 25L
         private const val HAL_WARMUP_MS = 4000L
         private const val HAL_WARMUP_MIN_UNIQUE = 10L
-        private const val HAL_RECOVERY_COOLDOWN_MS = 60_000L
         private const val WATCHDOG_INTERVAL_MS = 1000L
         private const val SCAN_STALL_MS = 2000L
         private const val RECOVER_COOLDOWN_MS = 5000L

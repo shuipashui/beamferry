@@ -4,7 +4,9 @@
 
 对外说明只写 [README.md](README.md)。不要在 README 里放版本号、实测 KB/s、Worker / VideoFrame 细节或本文链接。
 
-**交接时点：** 2026-08-23。网页接收端 **v86**。Android APK **0.8.88**（versionCode 102）。给蓝只发 GitHub Actions Artifacts 直链。
+**交接时点：** 2026-08-23。网页接收端 **v86**。Android APK **0.8.89**（versionCode 103）。给蓝只发 GitHub Actions Artifacts 直链。
+
+**0.8.89：** 去掉空扫 HAL 杀进程倒计时。对准二维码时唯一帧 1–4、空扫仍高，0.8.88 仍会弹出「正在释放相机」。自动恢复只留软解码；倒计时只留给用户点「继续接收」且相机未绑。
 
 **0.8.88：** 首次点「接收文件」后空扫不再 HAL 杀进程，避免约 5 秒弹出「正在释放相机」倒计时。仍可用软恢复。唯一帧 >0 后 HAL 空扫恢复照旧。
 
@@ -36,10 +38,10 @@
 | 部件 | 版本 | 对照 |
 |---|---|---|
 | 网页接收端 | **v86** | 预览 30/60 FPS；四码 inflight 1 · 33 ms；识别 `layoutCodes=2` |
-| Android APK | **0.8.88**（versionCode 102） | 首次接收不弹 HAL 倒计时；四码格4并行；继续热相机 |
+| Android APK | **0.8.89**（versionCode 103） | 无 HAL 杀进程倒计时；四码格4并行；继续热相机 |
 | 发送端 | AFL2 单文件 HTML | 单码预填 **2953 B · 30 FPS**；四码 **1465 B · 30 FPS**；双码 **2068 B · 60 FPS**（V33） |
 
-诊断第一行：`网页：v86` 或 `App 0.8.88`。
+诊断第一行：`网页：v86` 或 `App 0.8.89`。
 
 ## 4. 实测对照（只认这些）
 
@@ -88,7 +90,7 @@
 
 根目录 `index.html` + `app.js` + `sw.js`；`web-receiver/` 必须 byte-identical。高速路径：`requestVideoFrameCallback` → Worker WASM。四码 `HIGH_QUAD_INFLIGHT = 1`，33 ms。
 
-## 7. Android APK（0.8.88）
+## 7. Android APK（0.8.89）
 
 源码：`android-receiver/app/src/main/java/com/airferrylite/receiver/`。构建：GitHub Actions `Build Android receiver` 或 `android-receiver/build-local.ps1`（输出 `app/build/outputs/apk/debug/app-debug.apk`，**不要**发给蓝）。
 
@@ -96,7 +98,7 @@
 - **解码：** `main` 模型——`multiLayout` 时格位 + quadrant。未锁时 `maxSymbols=4` 整幅读。四码头锁 `quadStream`：格 4 后**只并行扫格**，命中 <2 才并行 overlay；**不要**串行 8 路（0.8.86 采集 33 FPS）。`isMultiLayout` 或 ≥2 命中锁多码。
 - **不要** `dualStream` 早退、不要 `noteStreamLayout` 预 bootstrap、不要 `dualFastPath`（0.8.82–0.8.85 回归）。
 - **生命周期：** 点「接收文件」才开相机；打开过程用面板盖住 PreviewView，不要露出绑定黑屏。收完 `pauseScanner`（不 unbind）；「继续接收」若相机仍绑则热启动，不杀进程。二次冷启动才走 HAL 冷却。不要 `onStop` unbind。
-- **HAL：** 空扫 >80% 且唯一帧 1–24 可 **一次** 冷启动（60 s 冷却）。**唯一帧 = 0 不杀进程**（首次接收空扫是正常瞄准，不要倒计时）。continue-receive warmup 内不连环重启。
+- **HAL：** **不要**因空扫杀进程弹倒计时。软解码恢复可留。点「接收文件」立即绑相机，不等 HAL 冷却。
 - **诊断：** 含 `总耗时`；ROI `格 N`；复制全文给开发。
 
 ## 8. 架构
@@ -105,7 +107,7 @@
 sender/dist/airferry-lite-sender.html   单文件发送端
 index.html + app.js + sw.js             GitHub Pages 网页接收
 web-receiver/                           根目录镜像
-android-receiver/                       Kotlin + CameraX + zxing-cpp（0.8.88）
+android-receiver/                       Kotlin + CameraX + zxing-cpp（0.8.89）
 shared/ + highspeed-protocol.js         AFL1 / AFL2
 tests/                                  npm test
 ```
