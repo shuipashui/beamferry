@@ -465,6 +465,9 @@ class MainActivity : AppCompatActivity() {
     private fun maybeRestartForHalEmptyBurst(stats: ScanStats) {
         if (!cameraStarted || processRestarting || halRecoveryRestartAttempted) return
         if (inHalRecoveryWarmup()) return
+        // First open / still aiming: empty scans are normal. Killing the process
+        // shows the bind countdown ~5s after 「接收文件」 (0.8.87).
+        if (highUniqueFrameCount == 0L) return
         if (highUniqueFrameCount >= 5 || lastHighSolved >= 20) return
         val lastHalRecovery = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
             .getLong(PREF_LAST_HAL_RECOVERY_MS, 0L)
