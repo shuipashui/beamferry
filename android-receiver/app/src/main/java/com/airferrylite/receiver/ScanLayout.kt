@@ -129,6 +129,24 @@ internal object ScanLayout {
         return owner
     }
 
+    /** Nearest containing tile; overlapping crops pick the closer center. */
+    fun ownerIndex(tiles: List<ScanRegion>, x: Float, y: Float): Int {
+        var best = -1
+        var bestDist = Float.POSITIVE_INFINITY
+        for (index in tiles.indices) {
+            val tile = tiles[index]
+            if (x < tile.left || x >= tile.left + tile.width || y < tile.top || y >= tile.top + tile.height) continue
+            val dx = x - (tile.left + tile.width / 2f)
+            val dy = y - (tile.top + tile.height / 2f)
+            val dist = dx * dx + dy * dy
+            if (dist < bestDist) {
+                bestDist = dist
+                best = index
+            }
+        }
+        return best
+    }
+
     fun followContainedHits(
         tiles: List<ScanRegion>,
         hits: List<List<Pair<Float, Float>>>,

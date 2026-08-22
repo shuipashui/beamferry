@@ -4,9 +4,11 @@
 
 对外说明只写 [README.md](README.md)。不要在 README 里放版本号、实测 KB/s、Worker / VideoFrame 细节或本文链接。
 
-**交接时点：** 2026-08-23。网页接收端 **v86**。Android APK **0.8.86**（versionCode 100）。给蓝只发 GitHub Actions Artifacts 直链。
+**交接时点：** 2026-08-23。网页接收端 **v86**。Android APK **0.8.87**（versionCode 101）。给蓝只发 GitHub Actions Artifacts 直链。
 
-**0.8.86 基准：** 双码解码路径已 **回退到 `main` 分支模型**（`QrFrameAnalyzer` + `ScanLayout`）：未锁多码时整幅 `maxSymbols=4`，锁多码后格位 + quadrant 8 路补扫；**不要**再叠 `dualStream` / `dualFastPath` 早退（0.8.73–0.8.85 曾导致全图单码、空扫 90%+）。MainActivity 保留：HAL 恢复仅 warmup、收完 `pauseScanner` 不 unbind、二次接收相机热启动、诊断总耗时。
+**0.8.87：** 四码锁格 4 后只走并行格位（不再串行 8 路补扫，0.8.86 因此掉到 33 FPS / 121 KB/s）。收完结果页盖住预览；「继续接收」相机仍绑则热启动，不杀进程、不闪绑定界面。不要把 `dualFastPath` / `dualStream` 早退加回来。
+
+**0.8.86 基准：** 双码解码路径已 **回退到 `main` 分支模型**（`QrFrameAnalyzer` + `ScanLayout`）：未锁多码时整幅 `maxSymbols=4`，锁多码后格位 + quadrant 补扫；**不要**再叠 `dualStream` / `dualFastPath` 早退（0.8.73–0.8.85 曾导致全图单码、空扫 90%+）。MainActivity：HAL 恢复仅 warmup、收完 `pauseScanner` 不 unbind、二次接收相机热启动、诊断总耗时。
 
 ## 1. 项目一句话
 
@@ -32,10 +34,10 @@
 | 部件 | 版本 | 对照 |
 |---|---|---|
 | 网页接收端 | **v86** | 预览 30/60 FPS；四码 inflight 1 · 33 ms；识别 `layoutCodes=2` |
-| Android APK | **0.8.86**（versionCode 100） | main 双码解码模型；HAL warmup；热相机二次接收；诊断含总耗时 |
+| Android APK | **0.8.87**（versionCode 101） | 四码格4并行；继续接收热相机；绑定界面遮罩 |
 | 发送端 | AFL2 单文件 HTML | 单码预填 **2953 B · 30 FPS**；四码 **1465 B · 30 FPS**；双码 **2068 B · 60 FPS**（V33） |
 
-诊断第一行：`网页：v86` 或 `App 0.8.86`。
+诊断第一行：`网页：v86` 或 `App 0.8.87`。
 
 ## 4. 实测对照（只认这些）
 
@@ -58,13 +60,15 @@
 | 0.8.83 继续（无卡顿） | 59.2 | ~1.8 | 格 2 | 实时 **240**；会话受爬坡影响 |
 | 0.8.86 | 待测 | ≥1.9 | 格 2 | 目标 **≥220 KB/s** |
 
-动手前：**首次 / 继续 / 强杀** 不能低于 **234.6 / 238.4 / 236.2**。继续接收仍要冷启动倒计时，但不应连环「释放相机」或画面卡死。
+动手前：**首次 / 继续 / 强杀** 不能低于 **234.6 / 238.4 / 236.2**。继续接收相机仍绑时热启动，不应出现「正在打开相机」或「正在释放相机」倒计时。
 
 ### APK 四码 1465 B · 30 FPS（整屏同换）
 
 | 采集 | 每帧 | ROI | 会话 |
 |---|---|---|---|
 | 59.1 | **2.94** | 格 4 | **168.9 KB/s** |
+| 0.8.86 回归 | 33.2 | 1.67 | 格 4 | **121.1 KB/s**（串行补扫，勿回归） |
+| 0.8.87 目标 | ~60 | ≥2.5 | 格 4 | **≥152 KB/s**，对照 168.9 |
 
 ### 理论上限
 
@@ -82,14 +86,14 @@
 
 根目录 `index.html` + `app.js` + `sw.js`；`web-receiver/` 必须 byte-identical。高速路径：`requestVideoFrameCallback` → Worker WASM。四码 `HIGH_QUAD_INFLIGHT = 1`，33 ms。
 
-## 7. Android APK（0.8.86）
+## 7. Android APK（0.8.87）
 
 源码：`android-receiver/app/src/main/java/com/airferrylite/receiver/`。构建：GitHub Actions `Build Android receiver` 或 `android-receiver/build-local.ps1`（输出 `app/build/outputs/apk/debug/app-debug.apk`，**不要**发给蓝）。
 
 - 分析流 **1920×1440** · `KEEP_ONLY_LATEST` · 标题行 30/60/120。
-- **解码：** `main` 模型——`multiLayout` 时格位 + quadrant 串行/并行补扫；未锁时 `maxSymbols=4` 整幅读。`isMultiLayout` 或 ≥2 命中锁多码。
-- **不要** `dualStream` 早退、不要 `noteStreamLayout` 预 bootstrap（0.8.82–0.8.85 回归）。
-- **生命周期：** 点「接收文件」才开相机；收完 `pauseScanner`（不 unbind）；「继续接收」冷启动 + HAL 冷却。二次接收若相机仍绑则跳过 2 s「打开相机」。不要 `onStop` unbind。
+- **解码：** `main` 模型——`multiLayout` 时格位 + quadrant。未锁时 `maxSymbols=4` 整幅读。四码头锁 `quadStream`：格 4 后**只并行扫格**，命中 <2 才并行 overlay；**不要**串行 8 路（0.8.86 采集 33 FPS）。`isMultiLayout` 或 ≥2 命中锁多码。
+- **不要** `dualStream` 早退、不要 `noteStreamLayout` 预 bootstrap、不要 `dualFastPath`（0.8.82–0.8.85 回归）。
+- **生命周期：** 点「接收文件」才开相机；打开过程用面板盖住 PreviewView，不要露出绑定黑屏。收完 `pauseScanner`（不 unbind）；「继续接收」若相机仍绑则热启动，不杀进程。二次冷启动才走 HAL 冷却。不要 `onStop` unbind。
 - **HAL：** 空扫 >80% 且唯一帧 <25 可 **一次** 冷启动（60 s 冷却）；continue-receive warmup 内不连环重启。
 - **诊断：** 含 `总耗时`；ROI `格 N`；复制全文给开发。
 
@@ -99,7 +103,7 @@
 sender/dist/airferry-lite-sender.html   单文件发送端
 index.html + app.js + sw.js             GitHub Pages 网页接收
 web-receiver/                           根目录镜像
-android-receiver/                       Kotlin + CameraX + zxing-cpp（0.8.86）
+android-receiver/                       Kotlin + CameraX + zxing-cpp（0.8.87）
 shared/ + highspeed-protocol.js         AFL1 / AFL2
 tests/                                  npm test
 ```
@@ -107,7 +111,7 @@ tests/                                  npm test
 ## 9. 不要做（摘要）
 
 - 网页：不要单码整幅压 720、不要四码 16 ms inflight 2、不要 SW `reload`。
-- APK：不要 `ImageProxy.read()`、不要收完 `unbindAll` 后在同进程立刻 bind、不要 `onStop` unbind、不要看门狗 `unbindAll`、不要双码专用早退路径（已回退 main）。
+- APK：不要 `ImageProxy.read()`、不要收完 `unbindAll` 后在同进程立刻 bind、不要 `onStop` unbind、不要看门狗 `unbindAll`、不要双码专用早退路径（已回退 main）、不要四码格 4 后再走串行 8 路补扫。
 - 发布：不要把本地 apk 路径发给蓝；不要 force-push `main`。
 
 完整否定清单见 git 历史 `0.8.63` 版 HANDOVER §9；新增：**不要** 0.8.73+ 分支上的 `dualFastPath` / 低 FPS `unbind` 重绑 / 每秒清格。

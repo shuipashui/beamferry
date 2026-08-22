@@ -139,6 +139,8 @@ class MainActivity : AppCompatActivity() {
     private var restartStartedAt = 0L
     private var settlePreviewBeforeAnalyze = false
     private var skipHalWaitOnBeginReceive = false
+    private val analyzerAttachGeneration = AtomicInteger(0)
+    private var completedSessionDurationMs = -1L
     private var softDecoderRecoverAttempted = false
     private var lastSoftRecoverAt = 0L
     private var halRecoveryRestartAttempted = false
@@ -278,7 +280,7 @@ class MainActivity : AppCompatActivity() {
             }
             skipHalWaitOnBeginReceive = bindDelay > 0L
             settlePreviewBeforeAnalyze = true
-            if (fromContinue) showScanning() else showOpeningCamera()
+            showOpeningCamera()
             previewView.post {
                 watchdog.postDelayed({
                     requestStartReceive()
@@ -313,6 +315,12 @@ class MainActivity : AppCompatActivity() {
     private fun continueReceive() {
         if (processRestarting) return
         findViewById<Button>(R.id.continueReceiveButton).isEnabled = false
+        val warmCamera = imageAnalysis != null && boundCamera != null
+        if (warmCamera) {
+            receiveSessionFromContinue = true
+            beginReceive()
+            return
+        }
         val (preKill, postKill) = planColdRestart()
         scheduleColdRestart(preKill, postKill, "正在释放相机", fromContinue = true)
     }
@@ -413,6 +421,7 @@ class MainActivity : AppCompatActivity() {
         showScanning()
         val warmBound = imageAnalysis
         if (warmBound != null && boundCamera != null) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             cameraStarted = true
             cameraBoundAt = SystemClock.elapsedRealtime()
             attachAnalyzer(warmBound, settle = false)
@@ -545,11 +554,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showOpeningCamera() {
-        idlePanel.visibility = View.GONE
+        idlePanel.visibility = View.VISIBLE
         resultPanel.visibility = View.GONE
         restartingPanel.visibility = View.GONE
-        scanMetaRow.visibility = View.VISIBLE
+        scanMetaRow.visibility = View.GONE
         resetButton.visibility = View.GONE
+        startReceiveButton.isEnabled = false
         statusText.text = "正在打开相机"
     }
 
@@ -569,6 +579,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun pauseScanner() {
+        analyzerAttachGeneration.incrementAndGet()
         imageAnalysis?.clearAnalyzer()
         cameraStarted = false
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -689,6 +700,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun attachAnalyzer(analysis: ImageAnalysis, settle: Boolean) {
+        val generation = analyzerAttachGeneration.incrementAndGet()
         if (!settle) {
             analysis.setAnalyzer(cameraExecutor, frameAnalyzer)
             return
@@ -696,6 +708,8 @@ class MainActivity : AppCompatActivity() {
         val settleMs = if (receiveSessionFromContinue) CONTINUE_ANALYZER_SETTLE_MS else ANALYZER_SETTLE_MS
         watchdog.postDelayed({
             if (isDestroyed || imageAnalysis !== analysis) return@postDelayed
+            if (generation != analyzerAttachGeneration.get()) return@postDelayed
+            if (!cameraStarted) return@postDelayed
             analysis.setAnalyzer(cameraExecutor, frameAnalyzer)
             if (::frameAnalyzer.isInitialized) frameAnalyzer.setAnalysisIdle(false)
         }, settleMs)
@@ -783,6 +797,7 @@ class MainActivity : AppCompatActivity() {
         val complete = update.complete
         if (complete != null && meta != null) {
             frameAnalyzer.setAnalysisIdle(true)
+            freezeSessionDuration(SystemClock.elapsedRealtime())
             offerCompletedFile(meta.session, meta.name, meta.mime, complete)
         }
     }
@@ -832,6 +847,7 @@ class MainActivity : AppCompatActivity() {
             renderDiagnostics()
         }
         if (file != null && update.session != null) {
+            freezeSessionDuration(now)
             offerCompletedFile("high:${update.session}", file.name, file.mime, file.bytes)
         }
     }
@@ -911,12 +927,9 @@ class MainActivity : AppCompatActivity() {
         resetExposureSession()
         if (bound != null) {
             cameraStarted = true
-            watchdog.postDelayed({
-                if (!isDestroyed && imageAnalysis === bound) {
-                    bound.setAnalyzer(cameraExecutor, frameAnalyzer)
-                }
-                frameAnalyzer.setAnalysisIdle(false)
-            }, ANALYZER_SETTLE_MS)
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            attachAnalyzer(bound, settle = true)
+            if (::frameAnalyzer.isInitialized) frameAnalyzer.setAnalysisIdle(false)
         } else {
             frameAnalyzer.setAnalysisIdle(false)
         }
@@ -970,7 +983,11 @@ class MainActivity : AppCompatActivity() {
         val stats = lastStats
         val now = SystemClock.elapsedRealtime()
         val highAge = if (highLastFrameAt == 0L) "—" else "${(now - highLastFrameAt).coerceAtLeast(0)} ms"
-        val sessionElapsed = if (scanSessionStartedAt == 0L) "—" else formatDuration(now - scanSessionStartedAt)
+        val sessionElapsed = when {
+            completedSessionDurationMs >= 0L -> formatDuration(completedSessionDurationMs)
+            scanSessionStartedAt == 0L -> "—"
+            else -> formatDuration(now - scanSessionStartedAt)
+        }
         val lines = listOf(
             "设备：${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE} · App ${BuildConfig.VERSION_NAME}",
             "相机：${stats?.width ?: "?"}×${stats?.height ?: "?"} · 采集 ${stats?.captureFps?.let { "%.1f".format(it) } ?: "?"} FPS · 选择 $requestedFps · 目标 ${preferredFpsLabel()}",
@@ -1057,6 +1074,7 @@ class MainActivity : AppCompatActivity() {
         speedBytesPerSecond = 0.0
         sessionStartedAt = 0
         scanSessionStartedAt = 0
+        completedSessionDurationMs = -1L
         sessionUniquePayloadBytes = 0
         sessionAverageBytesPerSecond = 0.0
         rollingCount = 0
@@ -1085,6 +1103,12 @@ class MainActivity : AppCompatActivity() {
         value < 1024 -> "%.0f B/s".format(value)
         value < 1048576 -> "%.1f KB/s".format(value / 1024.0)
         else -> "%.2f MB/s".format(value / 1048576.0)
+    }
+
+    private fun freezeSessionDuration(now: Long) {
+        if (completedSessionDurationMs >= 0L) return
+        if (scanSessionStartedAt == 0L) return
+        completedSessionDurationMs = (now - scanSessionStartedAt).coerceAtLeast(0L)
     }
 
     private fun formatDuration(ms: Long): String {

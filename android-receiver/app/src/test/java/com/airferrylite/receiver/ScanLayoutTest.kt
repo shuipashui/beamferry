@@ -118,6 +118,18 @@ class ScanLayoutTest {
     }
 
     @Test
+    fun ownerIndexPicksNearestOverlappingTile() {
+        val tiles = listOf(
+            ScanRegion(0, 0, 600, 600),
+            ScanRegion(400, 0, 600, 600)
+        )
+        assertEquals(0, ScanLayout.ownerIndex(tiles, 100f, 100f))
+        assertEquals(1, ScanLayout.ownerIndex(tiles, 900f, 100f))
+        assertEquals(0, ScanLayout.ownerIndex(tiles, 450f, 100f))
+        assertEquals(1, ScanLayout.ownerIndex(tiles, 550f, 100f))
+    }
+
+    @Test
     fun oneHitDoesNotClearOtherTilesViaOverlap() {
         val tiles = listOf(
             ScanRegion(0, 0, 400, 400),
