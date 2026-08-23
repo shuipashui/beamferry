@@ -114,6 +114,44 @@ internal object ScanLayout {
         return dualHalves(band)
     }
 
+    /** Tight crop around one decoded QR, preserving room for its quiet zone. */
+    fun tileFromHit(
+        points: List<Pair<Float, Float>>,
+        imageWidth: Int,
+        imageHeight: Int
+    ): ScanRegion? {
+        if (points.isEmpty() || imageWidth <= 0 || imageHeight <= 0) return null
+        val minX = points.minOf { it.first }
+        val maxX = points.maxOf { it.first }
+        val minY = points.minOf { it.second }
+        val maxY = points.maxOf { it.second }
+        val side = (max(maxX - minX, maxY - minY) * 1.18f).toInt().coerceAtLeast(MIN_SIDE)
+        val cx = (minX + maxX) / 2f
+        val cy = (minY + maxY) / 2f
+        return clamp(ScanRegion((cx - side / 2f).toInt(), (cy - side / 2f).toInt(), side, side), imageWidth, imageHeight)
+    }
+
+    /**
+     * Camera Y is decoded without display rotation, so a visually horizontal pair may
+     * be vertical in sensor coordinates. Probe every adjacent direction until the
+     * second protocol-distinct QR establishes the real pair axis.
+     */
+    fun siblingCandidatesFromHit(
+        points: List<Pair<Float, Float>>,
+        imageWidth: Int,
+        imageHeight: Int
+    ): List<ScanRegion> {
+        val tile = tileFromHit(points, imageWidth, imageHeight) ?: return emptyList()
+        val shift = (tile.width * 0.92f).toInt().coerceAtLeast(1)
+        val candidates = listOf(
+            ScanRegion(tile.left - shift, tile.top, tile.width, tile.height),
+            ScanRegion(tile.left + shift, tile.top, tile.width, tile.height),
+            ScanRegion(tile.left, tile.top - shift, tile.width, tile.height),
+            ScanRegion(tile.left, tile.top + shift, tile.width, tile.height)
+        ).map { clamp(it, imageWidth, imageHeight) }
+        return candidates.distinct().filter { it != tile }
+    }
+
     fun exclusiveQuadrants(region: ScanRegion): List<ScanRegion> {
         val halfW = (region.width / 2).coerceAtLeast(1)
         val halfH = (region.height / 2).coerceAtLeast(1)

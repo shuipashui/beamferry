@@ -44,7 +44,8 @@ data class ScanStats(
     val dualPartialFrames: Long = 0,
     val dualRecoveryScans: Long = 0,
     val dualLeftCropHits: Long = 0,
-    val dualRightCropHits: Long = 0
+    val dualRightCropHits: Long = 0,
+    val dualAxis: String = "unlocked"
 )
 
 /** Latest-frame zxing-cpp scan on the CameraX analyzer thread. */
@@ -311,14 +312,14 @@ class QrFrameAnalyzer(
                 dualRecoveryTick.set(0)
                 dualRecoveryScans.incrementAndGet()
                 val fromHit = merged.firstOrNull { it.points.size >= 2 }?.let { hit ->
-                    ScanLayout.dualTilesFromOneHit(
+                    ScanLayout.siblingCandidatesFromHit(
                         hit.points.map { (x, y) -> (hit.originLeft + x) to (hit.originTop + y) },
                         luma.width,
                         luma.height
                     )
                 }
                 val retry = when {
-                    fromHit != null && fromHit.size >= 2 -> fromHit
+                    fromHit != null && fromHit.isNotEmpty() -> fromHit
                     previousTiles.size >= 2 ->
                         ScanLayout.dualHalves(
                             ScanLayout.union(previousTiles[0], previousTiles[1], luma.width, luma.height)
@@ -566,7 +567,7 @@ class QrFrameAnalyzer(
                 trackedTiles.set(
                     when {
                         hits.size >= 2 -> ScanLayout.tilesFromHits(perCode, imageWidth, imageHeight)
-                        else -> ScanLayout.dualTilesFromOneHit(perCode.first(), imageWidth, imageHeight)
+                        else -> listOfNotNull(ScanLayout.tileFromHit(perCode.first(), imageWidth, imageHeight))
                     }
                 )
             }
@@ -637,9 +638,19 @@ class QrFrameAnalyzer(
                 dualPartialFrames = dualPartialFrames.get(),
                 dualRecoveryScans = dualRecoveryScans.get(),
                 dualLeftCropHits = dualLeftCropHits.get(),
-                dualRightCropHits = dualRightCropHits.get()
+                dualRightCropHits = dualRightCropHits.get(),
+                dualAxis = dualAxisLabel(trackedTiles.get())
             )
         )
+    }
+
+    private fun dualAxisLabel(tiles: List<ScanRegion>?): String {
+        if (tiles == null || tiles.size < 2) return "unlocked"
+        val first = tiles[0]
+        val second = tiles[1]
+        val dx = kotlin.math.abs((first.left + first.width / 2) - (second.left + second.width / 2))
+        val dy = kotlin.math.abs((first.top + first.height / 2) - (second.top + second.height / 2))
+        return if (dx >= dy) "horizontal" else "vertical"
     }
 
     companion object {

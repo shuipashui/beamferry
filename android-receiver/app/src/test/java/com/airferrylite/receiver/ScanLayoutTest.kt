@@ -261,4 +261,16 @@ class ScanLayoutTest {
         assertTrue(tiles.any { it.left == 0 && it.top == 0 })
         assertTrue(tiles.any { it.left + it.width == 1920 && it.top + it.height == 1440 })
     }
+
+    @Test
+    fun siblingCandidatesProbeBothAxes() {
+        val points = listOf(600f to 500f, 800f to 500f, 800f to 700f, 600f to 700f)
+        val tile = ScanLayout.tileFromHit(points, 1920, 1440)!!
+        val candidates = ScanLayout.siblingCandidatesFromHit(points, 1920, 1440)
+        assertEquals(4, candidates.size)
+        assertTrue(candidates.any { it.left < tile.left })
+        assertTrue(candidates.any { it.left > tile.left })
+        assertTrue(candidates.any { it.top < tile.top })
+        assertTrue(candidates.any { it.top > tile.top })
+    }
 }
