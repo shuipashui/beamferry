@@ -125,7 +125,9 @@ internal object ScanLayout {
         val maxX = points.maxOf { it.first }
         val minY = points.minOf { it.second }
         val maxY = points.maxOf { it.second }
-        val side = (max(maxX - minX, maxY - minY) * 1.18f).toInt().coerceAtLeast(MIN_SIDE)
+        // Bootstrap crops are deliberately wider than steady-state tracked tiles.
+        // They must tolerate quiet-zone size, perspective and small framing changes.
+        val side = (max(maxX - minX, maxY - minY) * 1.38f).toInt().coerceAtLeast(MIN_SIDE)
         val cx = (minX + maxX) / 2f
         val cy = (minY + maxY) / 2f
         return clamp(ScanRegion((cx - side / 2f).toInt(), (cy - side / 2f).toInt(), side, side), imageWidth, imageHeight)
@@ -142,7 +144,7 @@ internal object ScanLayout {
         imageHeight: Int
     ): List<ScanRegion> {
         val tile = tileFromHit(points, imageWidth, imageHeight) ?: return emptyList()
-        val shift = (tile.width * 0.92f).toInt().coerceAtLeast(1)
+        val shift = (tile.width * 0.78f).toInt().coerceAtLeast(1)
         val candidates = listOf(
             ScanRegion(tile.left - shift, tile.top, tile.width, tile.height),
             ScanRegion(tile.left + shift, tile.top, tile.width, tile.height),

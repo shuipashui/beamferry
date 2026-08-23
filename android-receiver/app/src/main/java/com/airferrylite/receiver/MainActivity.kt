@@ -961,6 +961,7 @@ class MainActivity : AppCompatActivity() {
             "解码：zxing-cpp · 平均 ${stats?.averageDecodeMs?.let { "%.1f ms".format(it) } ?: "—"} · 单码命中 ${stats?.singleHits ?: 0} · 多码扫描 ${stats?.multiScans ?: 0}（命中 ${stats?.multiHits ?: 0}${perFrameLabel(stats)}）",
             "双码：本帧 ${stats?.decodedThisFrame ?: 0} · 完整帧 ${stats?.dualCompleteFrames ?: 0} · 缺半帧 ${stats?.dualPartialFrames ?: 0} · 低频补扫 ${stats?.dualRecoveryScans ?: 0}",
             "双码格位：A ${stats?.dualLeftCropHits ?: 0} · B ${stats?.dualRightCropHits ?: 0} · 轴向 ${stats?.dualAxis ?: "unlocked"} · 去重后每帧 ${stats?.let { if (it.multiScans > 0) "%.2f".format(it.multiHits.toDouble() / it.multiScans) else "0" } ?: "0"}",
+            "引导：双格缓存 ${if (stats?.dualCacheAvailable == true) "有" else "无"} · 备用二值化 ${stats?.bootstrapRetryScans ?: 0} 次",
             "分析器：线程 ${stats?.workerCount ?: "?"} · 忙 ${stats?.workerBusy ?: "?"} · 空结果 ${stats?.emptyDecodes ?: 0} · 异常 ${stats?.decodeErrors ?: 0} · 新缓冲 ${stats?.bufferAllocations ?: 0}",
             "看门狗：恢复 ${stats?.pipelineRecoveries ?: 0} 次 · 心跳 ${if (lastStatsAt == 0L) "—" else "${(now - lastStatsAt).coerceAtLeast(0)} ms"}",
             "曝光：点测 $aeMeterCount · 补偿 $lastEvIndex · 轻推 $aeNudgeCount",

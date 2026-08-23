@@ -45,7 +45,9 @@ data class ScanStats(
     val dualRecoveryScans: Long = 0,
     val dualLeftCropHits: Long = 0,
     val dualRightCropHits: Long = 0,
-    val dualAxis: String = "unlocked"
+    val dualAxis: String = "unlocked",
+    val dualCacheAvailable: Boolean = false,
+    val bootstrapRetryScans: Long = 0
 )
 
 /** Latest-frame zxing-cpp scan on the CameraX analyzer thread. */
@@ -94,6 +96,9 @@ class QrFrameAnalyzer(
     private val dualRecoveryTick = AtomicInteger(0)
     private val dualLeftCropHits = AtomicLong(0)
     private val dualRightCropHits = AtomicLong(0)
+    private val stableDualTiles = AtomicReference<List<ScanRegion>?>(null)
+    private val bootstrapRetryTick = AtomicInteger(0)
+    private val bootstrapRetryScans = AtomicLong(0)
 
     override fun analyze(image: ImageProxy) {
         capturedInWindow.incrementAndGet()
@@ -223,6 +228,8 @@ class QrFrameAnalyzer(
         dualRecoveryTick.set(0)
         dualLeftCropHits.set(0)
         dualRightCropHits.set(0)
+        bootstrapRetryTick.set(0)
+        bootstrapRetryScans.set(0)
     }
 
     private fun chooseRegion(width: Int, height: Int): ScanRegion {
@@ -231,8 +238,14 @@ class QrFrameAnalyzer(
 
     private fun decodeFrame(luma: LumaSnapshot, region: ScanRegion, maxSymbols: Int): List<NativeHit> {
         if (!multiLayout.get()) {
-            val primary = decoder.read(luma, region, maxSymbols, retryBinarizer = false)
+            val retryBootstrap = bootstrapRetryTick.incrementAndGet() >= BOOTSTRAP_RETRY_INTERVAL
+            if (retryBootstrap) {
+                bootstrapRetryTick.set(0)
+                bootstrapRetryScans.incrementAndGet()
+            }
+            val primary = decoder.read(luma, region, maxSymbols, retryBinarizer = retryBootstrap)
             if (primary.isNotEmpty() || maxSymbols <= 1 || singleLayoutConfirmed.get() || quadStream.get()) {
+                if (primary.isNotEmpty()) bootstrapRetryTick.set(0)
                 return primary
             }
             val merged = mutableListOf<NativeHit>()
@@ -320,6 +333,7 @@ class QrFrameAnalyzer(
                 }
                 val retry = when {
                     fromHit != null && fromHit.isNotEmpty() -> fromHit
+                    stableDualTiles.get()?.size == 2 -> stableDualTiles.get().orEmpty()
                     previousTiles.size >= 2 ->
                         ScanLayout.dualHalves(
                             ScanLayout.union(previousTiles[0], previousTiles[1], luma.width, luma.height)
@@ -564,12 +578,13 @@ class QrFrameAnalyzer(
             }
             dualStream.get() -> {
                 tileUndercount.set(0)
-                trackedTiles.set(
-                    when {
-                        hits.size >= 2 -> ScanLayout.tilesFromHits(perCode, imageWidth, imageHeight)
-                        else -> listOfNotNull(ScanLayout.tileFromHit(perCode.first(), imageWidth, imageHeight))
-                    }
-                )
+                val next = when {
+                    hits.size >= 2 -> ScanLayout.tilesFromHits(perCode, imageWidth, imageHeight)
+                    stableDualTiles.get()?.size == 2 -> stableDualTiles.get().orEmpty()
+                    else -> listOfNotNull(ScanLayout.tileFromHit(perCode.first(), imageWidth, imageHeight))
+                }
+                trackedTiles.set(next)
+                if (hits.size >= 2 && next.size == 2) stableDualTiles.set(next)
             }
             hits.size >= 3 -> {
                 tileUndercount.set(0)
@@ -639,7 +654,9 @@ class QrFrameAnalyzer(
                 dualRecoveryScans = dualRecoveryScans.get(),
                 dualLeftCropHits = dualLeftCropHits.get(),
                 dualRightCropHits = dualRightCropHits.get(),
-                dualAxis = dualAxisLabel(trackedTiles.get())
+                dualAxis = dualAxisLabel(trackedTiles.get()),
+                dualCacheAvailable = stableDualTiles.get()?.size == 2,
+                bootstrapRetryScans = bootstrapRetryScans.get()
             )
         )
     }
@@ -660,5 +677,6 @@ class QrFrameAnalyzer(
         private const val STALE_TIMESTAMP_LIMIT = 12
         private const val TILE_UNDERCOUNT_LIMIT = 3
         private const val DUAL_RECOVERY_INTERVAL = 8
+        private const val BOOTSTRAP_RETRY_INTERVAL = 8
     }
 }
