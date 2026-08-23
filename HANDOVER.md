@@ -1,128 +1,260 @@
-# AirFerry Lite 工程交接
+# AirFerry Lite 交接文档
 
-给后续接手的人：当前怎么跑、发送/接收怎么实现、对照速度、哪些路不能再走、怎么发到 GitHub Pages。
+更新时间：2026-08-24
 
-对外说明只写 [README.md](README.md)。不要在 README 里放版本号、实测 KB/s、Worker / VideoFrame 细节或本文链接。
+本文记录当前 `main` 的真实状态、已验证结果、已排除方案，以及对上游
+[UR-SillyB/AirFerry](https://github.com/UR-SillyB/AirFerry) 四码 60 FPS 实现的分析。
+历史数据仅用于解释决策，不应继续作为当前版本的验收门槛。
 
-**交接时点：** 2026-08-23。网页接收端 **v86**。Android APK **0.8.89**（versionCode 103）。给蓝只发 GitHub Actions Artifacts 直链。
+## 1. 当前基线
 
-**0.8.89 冻结（蓝已确认）：** 四码速度正常；首次点「接收文件」后几秒内**不**弹「正在释放相机」倒计时。解码：未锁多码整幅 `maxSymbols=4`，四码头锁 `quadStream` 后只并行扫格 4。收完 `pauseScanner` 不 unbind；继续接收相机仍绑则热启动。自动恢复只留软解码，**不要**空扫 HAL 杀进程。**不要** `dualFastPath` / `dualStream`（0.8.73–0.8.85 回归：全图单码、空扫 90%+）。
-
-过程：0.8.86 四码串行 8 路补扫 → 采集 33.2 FPS / 会话 121 KB/s；0.8.87 改回并行格 4；0.8.88 仅跳过唯一帧=0 仍会在瞄准时弹倒计时；0.8.89 去掉自动杀进程。
-
-## 1. 项目一句话
-
-电脑浏览器把文件打成连续 QR，手机摄像头扫回来，无服务器。当前发送走 **AFL2**（Decimen v0.3 MIT：二进制帧 + LT 喷泉码）。网页和 APK 都能收；旧 **AFL1** 文本流只作兼容。
-
-仓库：https://github.com/shuipashui/airferry-lite  
-网页接收：https://shuipashui.github.io/airferry-lite/  
-发送端：https://shuipashui.github.io/airferry-lite/sender/dist/airferry-lite-sender.html  
-
-工作副本：`C:\Users\UU\airferry-lite`。默认分支 `main`。不要 force-push。
-
-## 2. 人、机、测法
-
-- 用户：**蓝**，软件工程师。直接改代码、看诊断、迭代。不要主动 commit/push，除非明确要求。
-- 主力测试机：Xiaomi / 红米（M098FE, songyuan）· Android 16 · Chrome 151。相机 **0–60 FPS**，预览常为 **1440×1920 竖屏**。
-- 电脑屏：**60 Hz**。四码必须 **四个码都进取景框**；拿太近只看见 1–2 格会明显掉速。
-- 网页**只在 GitHub Pages 上测**，本地 `index.html` 没有摄像头 HTTPS。改接收端必须升 `RECEIVER_BUILD` / `index.html?v=` / `sw.js` 的 `CACHE_NAME`，同步 `web-receiver/`，跑 `npm test`，再推 `main`。
-- 发送端 UI/布局改完跑 `node sender/build.mjs`，再推。不必升接收端版本。
-- **出 APK：** 推 `android-receiver/**` 触发 `Build Android receiver`。只发链接：`https://github.com/shuipashui/airferry-lite/actions/runs/<runId>/artifacts/<artifactId>`。不要写本地 `android-receiver/dist/` 或 Gradle 输出路径。
-
-## 3. 当前冻结面
-
-| 部件 | 版本 | 对照 |
-|---|---|---|
-| 网页接收端 | **v86** | 预览 30/60 FPS；四码 inflight 1 · 33 ms；识别 `layoutCodes=2` |
-| Android APK | **0.8.89**（versionCode 103） | 四码并行格4（蓝确认正常）；首次接收无倒计时；继续热相机 |
-| 发送端 | AFL2 单文件 HTML | 单码预填 **2953 B · 30 FPS**；四码 **1465 B · 30 FPS**；双码 **2068 B · 60 FPS**（V33） |
-
-诊断第一行：`网页：v86` 或 `App 0.8.89`。
-
-## 4. 实测对照（只认这些）
-
-电脑 **60 Hz**。红米 M098FE。会话速度看「唯一载荷」对应 KB/s。
-
-### 网页（2331 B · 30 FPS）
-
-| 布局 | 会话 |
+| 项目 | 当前值 |
 |---|---|
-| 单码 | **53.8 KB/s** |
-| 四码全屏 | **43.3 KB/s** |
+| Android APK | `0.8.114-dual-rolling-shutter` |
+| versionCode | `128` |
+| Web receiver build/cache | `v86` / `airferry-lite-v86` |
+| Android 解码器 | `zxing-cpp 2.3.0` |
+| 默认工作分支 | `main` |
+| 推荐单码参数 | `2953 B / 30 FPS` |
+| 推荐双码参数 | `2068 B / 50 FPS`，同一横排左右排列 |
+| 推荐四码参数 | `1465 B / 30 FPS`，2×2 排列 |
 
-### APK 双码 2068 B · 60 FPS（窗口 · 非全屏）
+- GitHub Pages：
+  <https://shuipashui.github.io/airferry-lite/sender/dist/airferry-lite-sender.html>
+- 当前 APK Action：
+  <https://github.com/shuipashui/airferry-lite/actions/runs/32661729788>
+- 当前 APK artifact：
+  <https://github.com/shuipashui/airferry-lite/actions/runs/32661729788/artifacts/9498933030>
 
-| 场景 | 采集 | 每帧 | ROI | 会话 |
-|---|---|---|---|---|
-| **冻结 · 0.8.43 首次** | 60.0 | ~1.99 | 格 2 | **234.6 KB/s** |
-| **冻结 · 0.8.43 继续接收** | 59.9 | 2.00 | 格 2 | **238.4 KB/s** |
-| **冻结 · 0.8.43 强杀重开** | 59.5 | 1.96 | 格 2 | **236.2 KB/s** |
-| 0.8.83 继续（无卡顿） | 59.2 | ~1.8 | 格 2 | 实时 **240**；会话受爬坡影响 |
-| 0.8.89 | 待测 | ≥1.9 | 格 2 | 目标 **≥220 KB/s**；首次接收不得弹倒计时 |
+版本号或链接变化时，应同时更新本节，不能保留旧 APK 作为“当前版本”。
 
-动手前：**首次 / 继续 / 强杀** 不能低于 **234.6 / 238.4 / 236.2**。点「接收文件」后应一直停在扫描预览；继续接收相机仍绑时热启动。两者都不应出现「正在释放相机」倒计时。
+## 2. 当前发送端和协议行为
 
-### APK 四码 1465 B · 30 FPS（整屏同换）
+### 单码
 
-| 采集 | 每帧 | ROI | 会话 |
-|---|---|---|---|
-| 59.1 | **2.94** | 格 4 | **168.9 KB/s**（冻结对照） |
-| 0.8.86 回归 | 33.2 | 1.67 | 格 4 | **121.1 KB/s**（串行补扫，勿回归） |
-| **0.8.89** | ~60 | ≥2.5 | 格 4 | 蓝确认四码正常；对照 **168.9** |
+- 单码使用一个 QR 区域。
+- 当前推荐 `2953 B / 30 FPS`，这是已验证的稳定配置。
 
-### 理论上限
+### 双码
 
-双码 2068·60 光学约 **240 KB/s**；四码 1465·30 约 **169 KB/s**。LT 约 1.15× 后文件通量再打折。
+- 生产模式只保留同一横排、左右两个 QR。
+- `50 FPS` 是真实的 5/6 屏幕刷新节拍，不是界面标签伪装成 50 FPS。
+- 双码发送链路允许两个独立数据流/缓存协作；旧文档中“禁止 dualStream”的说法已经失效。
+- 已移除“双码纵列”和“双码对角线”方案。它们没有解决相位与滚动快门问题，还增加了分支和误锁风险。
 
-## 5. 发送端实现
+### 四码
 
-源码：`sender/app.js`、`sender/styles.css`、`sender/template.html`。产物：`sender/dist/airferry-lite-sender.html`。改源码后 `node sender/build.mjs`。
+- 生产模式为 2×2 四格。
+- 当前 `60 FPS` 实现按对角线交替更新两码，因此每秒新符号量约等于
+  `2 × 60 = 120 symbols/s`，不是四格每帧全部更新的 `240 symbols/s`。
+- 当前推荐仍是 `1465 B / 30 FPS`；50/60 FPS 在这台设备上没有带来对应吞吐提升。
 
-- 双码 **`layoutCodes=2`（magic 0x1c / 0x1d）**，2×2 **上排**两枚，下排白底。60 FPS **两格同刷**。
-- 四码 30 FPS **整屏同换**；60 FPS 四码仍交错，不要四格同刷。
-- 不要 45 FPS。不要下排复制 QR / 对角 / 并排 2×1。
+### 编码和页面部署
 
-## 6. 网页接收端
+- 发送端 QR 当前使用固定 mask：`qr.make(4)`。
+- 四码 quiet zone 当前为每码 4 modules。
+- 仅修改发送端静态页面时，不需要无条件提升接收端 cache 版本；只有接收端缓存资源发生变化且旧缓存会影响行为时才提升。
 
-根目录 `index.html` + `app.js` + `sw.js`；`web-receiver/` 必须 byte-identical。高速路径：`requestVideoFrameCallback` → Worker WASM。四码 `HIGH_QUAD_INFLIGHT = 1`，33 ms。
+## 3. 当前设备实测结论
 
-## 7. Android APK（0.8.89）
+测试环境：
 
-源码：`android-receiver/app/src/main/java/com/airferrylite/receiver/`。构建：GitHub Actions `Build Android receiver` 或 `android-receiver/build-local.ps1`（输出 `app/build/outputs/apk/debug/app-debug.apk`，**不要**发给蓝）。
+- 手机：Xiaomi M098FE，Android 16
+- 屏幕：60 Hz
+- CameraX 分析流：1920×1440，通常约 59–60 FPS
+- 发送数据：双码常用 `2068 B`，四码常用 `1465 B`
 
-- 分析流 **1920×1440** · `KEEP_ONLY_LATEST` · 标题行 30/60/120。
-- **解码：** `main` 模型——`multiLayout` 时格位 + quadrant。未锁时 `maxSymbols=4` 整幅读。四码头锁 `quadStream`：格 4 后**只并行扫格**，命中 <2 才并行 overlay；**不要**串行 8 路（0.8.86 采集 33 FPS）。`isMultiLayout` 或 ≥2 命中锁多码。
-- **不要** `dualStream` 早退、不要 `noteStreamLayout` 预 bootstrap、不要 `dualFastPath`（0.8.82–0.8.85 回归）。
-- **生命周期：** 点「接收文件」立即开相机并扫描，几秒内不要弹倒计时。打开过程用面板盖住 PreviewView。收完 `pauseScanner`（不 unbind）；「继续接收」若相机仍绑则热启动，不杀进程。不要 `onStop` unbind。
-- **HAL：** **不要**因空扫杀进程弹倒计时。软解码恢复可留。点「接收文件」立即绑相机，不等 HAL 冷却。
-- **诊断：** 含 `总耗时`；ROI `格 N`；复制全文给开发。
+### 双码横排 2068 B / 50 FPS
 
-## 8. 架构
+同一版本、同一设备会随启动/刷新相位出现明显分化：
 
-```text
-sender/dist/airferry-lite-sender.html   单文件发送端
-index.html + app.js + sw.js             GitHub Pages 网页接收
-web-receiver/                           根目录镜像
-android-receiver/                       Kotlin + CameraX + zxing-cpp（0.8.89）
-shared/ + highspeed-protocol.js         AFL1 / AFL2
-tests/                                  npm test
+- 最好一次：`1.92 QR/frame`，完整双码帧 `870/908`，约 `199 KB/s`
+- 差相位一次：`0.39 QR/frame`，完整双码帧 `187/1633`，约 `40–59 KB/s`
+- 常见半速：约 `0.9–1.2 QR/frame`，约 `119 KB/s`
+- 理论净载荷约 `202 KB/s`，最好结果已经接近理论值，但不能稳定复现
+
+这说明瓶颈不是相机提交 FPS，也不是平均解码耗时。相机通常保持约 60 FPS、丢帧为 0，
+解码平均多在 6–10 ms；真正变化的是每帧能得到几个完整 QR。
+
+### 已移除的双码布局
+
+- 纵列：一次约 `1.15 QR/frame`、约 `118 KB/s`，没有稳定满速
+- 对角线：多数只能得到一个码、约 `119 KB/s`，也出现完全无速度
+
+所以不能把“布局像四码”理解成“会获得四码的稳定性”。QR 的屏幕刷新扫描方向、相机滚动快门方向、
+取景旋转和刷新相位共同决定一帧中哪些码是完整的。
+
+### 四码 1465 B
+
+- 30 FPS：约 `168.9 KB/s`，当前稳定推荐值
+- 50 FPS：一次 `2.32 QR/frame`、约 `168 KB/s`，吞吐未高于 30 FPS
+- 当前 60 FPS 对角交替设计的符号上限本来就只有约 120 symbols/s
+
+因此“四码满速”必须区分两件事：接收端分析流确实可到 60 FPS，但当前 Lite 发送端并没有在每个刷新帧
+生成四个新符号。日志中的 `QR/frame` 与有效唯一符号率比相机 FPS 更能说明实际吞吐。
+
+## 4. Android 接收端现状
+
+- CameraX 分析分辨率：1920×1440
+- 分析目标：60 FPS
+- 4 个格位工作线程
+- zxing-cpp 参数：
+  - `tryHarder=false`
+  - `tryInvert=false`
+  - `tryRotate=false`
+  - `tryDownscale=false`
+  - 主二值化：`LOCAL_AVERAGE`
+  - 备用二值化：`GLOBAL_HISTOGRAM`
+- 双码路径包含稳定格位、双格缓存、miss 后失效和备用二值化诊断
+
+详细诊断必须保留以下指标：
+
+- 相机采集/提交/完成 FPS、丢帧
+- 平均解码耗时、空结果、异常
+- 多码命中数与去重后 `QR/frame`
+- 双码完整帧、缺半帧、格位 A/B、轴向和几何锁定
+- ROI 格数、缓存状态、备用二值化次数
+- 协议总数、唯一/重复/无效、解块进度
+- 实时/平均/会话速度
+
+不能仅依据“轴向 horizontal/vertical”判断屏幕物理布局。相机缓冲区旋转、坐标变换或两个检测框的中心差
+都可能使诊断轴向与肉眼看到的屏幕左右关系不同。
+
+## 5. 双码问题的当前判断
+
+核心问题是 60 Hz 显示刷新与相机约 60 FPS 采样之间的相位锁定，加上 CMOS rolling shutter：
+
+1. 显示器不是瞬时整屏更新；不同扫描位置在相机曝光期间可能属于相邻发送帧。
+2. 两个 QR 即使在同一屏幕刷新中生成，也可能只有一个在该相机帧中完整。
+3. 相机和显示器频率接近时，相位可能长时间停留在“两个都完整”“只有一个完整”或“都被刷新边界切开”的状态。
+4. 清空、继续接收、强杀 APK 会改变启动时刻与相位，因此结果可在零速、半速、满速之间跳变。
+5. 解码器线程、缓存和 ROI 会放大或缓解结果，但现有日志不支持“CPU 解码不够快”是主要根因。
+
+50 FPS 的 5/6 节拍可让相位缓慢漂移，理论上比严格 60/60 锁相更有机会离开坏相位；但它不能保证每个相机帧
+都包含两个完整 QR，所以目前仍是实验性优化，不是稳定满速保证。
+
+## 6. 上游 UR-SillyB/AirFerry 四码 60 FPS 分析
+
+分析基于上游 `main` 提交
+`8a72ab86dee9d8f19b74bfec56c270101c5980ba`（2026-08-18）。
+
+### 6.1 上游实际上如何发送四码
+
+- 参数页公开提供单码和四码，没有正式双码选项。
+- FPS 选项包括 15/20/30/45/60/90/120，以及跟随显示器。
+- 默认速度预设为 `1400 B / 60 FPS`，默认四码。
+- 每个 `requestAnimationFrame` 调用一次 WASM `next_qr_scratch(4)`。
+- 同一刷新帧生成并绘制四个不同的 RaptorQ 符号，2×2 四格同时更新。
+- 因而 60 FPS 时理论源符号率为 `4 × 60 = 240 symbols/s`。
+
+这与 Lite 当前“四码 60 FPS 对角交替更新两个码”有本质差别。上游的 60 FPS 是四格全更新，
+Lite 当前则约为 120 个新符号/秒。
+
+上游性能文档曾记录 Android 720p 约 `210–240 symbols/s`。这是上游在其版本、设备和测试条件下的历史报告，
+不能直接当作本项目 Xiaomi 设备的保证值。
+
+### 6.2 上游 QR 更紧凑
+
+- 上游默认数据符号 1400 B，加 60 B 头和 4 B CRC，线长约 1464 B，与 Lite 四码 1465 B 密度接近。
+- 使用 Rust/WASM `fast_qr`，固定 mask 0，跳过遍历 8 个 mask 的成本。
+- 自动选择可容纳数据的最小 QR version。
+- 单码 margin 为 2 modules，相邻两码之间合计约 4 modules。
+- Lite 当前每码 quiet zone 为 4 modules，相邻间隙相当于 8 modules；同样画布下，上游有效 QR 模块可更大。
+- 上游自动优化可提高亮度至至少 1.15，并应用约 1.1 对比度；还可选 ±1 px dither。
+
+margin 2 是值得单独验证的高优先级因素，但不能直接改成生产默认。屏幕摩尔纹、对焦和取景裁切可能使更小
+quiet zone 在某些手机上反而降低成功率。
+
+### 6.3 上游 Android 解码流水线
+
+- 请求 1920×1080，优先固定 `[60,60]`，后备 `[30,60]`。
+- analyzer 只复制 Y 平面到池化缓冲区，立即关闭 CameraX image。
+- 使用有界跨帧队列，工作线程数为 `CPU 核数 - 3`，限制在 2–6。
+- 队列满时丢弃新帧，避免延迟无限堆积。
+- 初次用全图 `ReadBarcodes` 锁定多个 bounding boxes。
+- 热路径按固定框做原生零拷贝 crop，每框扩大约 35%，使用单码 `ReadBarcode`。
+- 某一框短时 miss 会保留旧框；全部区域连续 miss 时每 3 帧回退全图扫描。
+- 原生 zxing-cpp 3.0.2，开启 `tryHarder` 和 `tryInvert`。
+- 每个 worker 将一帧的 4 个符号批量提交，减少协议层锁竞争。
+
+上游架构的关键不是简单“开更多线程”，而是先锁定四个稳定格位，再把后续工作变成四个较小、可并行的单码 ROI。
+Lite 已有格位线程和缓存思路，但固定 N 格位、miss 保框和全失后低频重锁还可以进一步向上游对齐。
+
+### 6.4 协议差异
+
+- 上游使用 RaptorQ，默认冗余 5%。
+- Lite 当前 LT 冗余约 15%。
+- 更低冗余和批量 ingest 能改善完成时间与 CPU/锁开销。
+- RaptorQ 不会提高模糊或被刷新边界切开的 QR 的光学可解码率，也不能解决 rolling shutter。
+
+### 6.5 建议的独立实验顺序
+
+高优先级（每项必须独立构建、独立对照）：
+
+1. 增加“实验性四格每帧全更新”模式：`1465 B / 60 FPS`，保留当前生产四码作为对照。
+2. 四码 quiet zone 从 4 降至 2 的独立实验，记录 QR 实际像素边长、`QR/frame` 和唯一符号率。
+3. 增加可关闭的亮度 1.15 / 对比度 1.1 发送端优化。
+4. 对照 `1400 B` 与 `1465 B`，判断略低 QR version/模块密度是否更稳定。
+
+中优先级：
+
+1. `tryHarder/tryInvert` 只用于 miss recovery，避免每帧全图开启造成耗时抖动。
+2. 独立比较 1920×1080 与 1920×1440，确认分辨率、画幅裁切和滚动快门表现。
+3. 双码/四码改为固定 N 个格位；单格短时 miss 保持旧框，仅全格连续 miss 时低频全图重锁。
+4. 实验分支升级 zxing-cpp 或采用上游 C++ 原生 crop 路径，必须重新测耗时与稳定性。
+
+低优先级/长期：
+
+1. 若性能分析显示存在跨帧空闲，再尝试 2–6 个工作线程的有界跨帧池；当前 Xiaomi 解码多在 6–10 ms 且无丢帧，
+   它不是双码半速的首要修复。
+2. 若协议提交锁竞争可测量，再加入一帧 4 符号批量 ingest。
+3. RaptorQ 可作为协议升级评估，但不能作为光学识别问题的修复。
+
+实验纪律：
+
+- 不要同时修改发送 FPS、数据大小、quiet zone、亮度、解码参数和 ROI 策略。
+- 每个版本至少记录首次接收、继续接收、清空重收、强杀后接收。
+- 以唯一符号率、完整多码帧比例、空结果率和会话完成时间为主要指标，不只看瞬时 KB/s。
+- 不要把上游历史 `210–240 symbols/s` 当作本设备验收阈值。
+- 不要在全图热路径盲目开启 `tryHarder/tryInvert`。
+- 跨帧队列必须有界；禁止用无限队列换取表面“不丢帧”。
+
+## 7. 已知失败模式与不要重复的方向
+
+- 不要恢复双码纵列或对角线生产选项；实测没有稳定收益。
+- 不要仅凭相机 60 FPS 宣称二维码达到 60 FPS 有效吞吐。
+- 不要把“识别出两个框”与“每帧获得两个新的、有效的协议符号”混为一谈。
+- 不要为了双码问题重写整个单码/四码稳定路径。
+- 不要用 RaptorQ、更多冗余或协议缓存掩盖光学解码率问题。
+- 不要删除详细诊断；不同启动相位的差异必须依靠完整日志比较。
+
+## 8. 构建、验证与发布
+
+修改后至少执行：
+
+```powershell
+npm test
+git diff --check
 ```
 
-## 9. 不要做（摘要）
+Android 代码变化时还应执行可用的本地 Gradle 测试/构建，并通过 GitHub Actions 生成 APK。发布检查：
 
-- 网页：不要单码整幅压 720、不要四码 16 ms inflight 2、不要 SW `reload`。
-- APK：不要 `ImageProxy.read()`、不要收完 `unbindAll` 后在同进程立刻 bind、不要 `onStop` unbind、不要看门狗 `unbindAll`、不要双码专用早退路径（已回退 main）、不要四码格 4 后再走串行 8 路补扫、不要空扫 HAL 杀进程倒计时。
-- 发布：不要把本地 apk 路径发给蓝；不要 force-push `main`。
+1. 确认工作分支与目标提交。
+2. 检查版本名、versionCode、接收端 build/cache 是否按需要更新。
+3. 推送后确认 GitHub Actions 和 Pages 状态。
+4. 下载 artifact 后校验文件确实存在，再提供链接。
+5. 将新版本、Action、artifact 和测试结果回填本文件。
 
-完整否定清单见 git 历史 `0.8.63` 版 HANDOVER §9；新增：**不要** 0.8.73+ 的 `dualFastPath` / 低 FPS `unbind` 重绑 / 每秒清格 / 空扫杀进程倒计时。
+## 9. 上游参考
 
-## 10. 怎么改网页、怎么上线
+- [AirFerry 参数和默认值](https://github.com/UR-SillyB/AirFerry/blob/main/apps/sender/src/pages/ParamsPage.tsx)
+- [AirFerry 类型与配置](https://github.com/UR-SillyB/AirFerry/blob/main/apps/sender/src/types.ts)
+- [四码发送渲染](https://github.com/UR-SillyB/AirFerry/blob/main/apps/sender/src/components/QrStream.tsx)
+- [Android 解码池](https://github.com/UR-SillyB/AirFerry/blob/main/apps/scanner/app/src/main/java/com/airferry/app/scan/QrDecodePool.kt)
+- [Android 相机与格位跟踪](https://github.com/UR-SillyB/AirFerry/blob/main/apps/scanner/app/src/main/java/com/airferry/app/ui/ScanActivity.kt)
+- [原生 zxing-cpp 解码](https://github.com/UR-SillyB/AirFerry/blob/main/apps/scanner/app/src/main/cpp/scan_jni.cpp)
+- [QR 生成实现](https://github.com/UR-SillyB/AirFerry/blob/main/core/qr-protocol/src/qr_render.rs)
+- [上游性能记录](https://github.com/UR-SillyB/AirFerry/blob/main/docs/perf-web-receiver.md)
 
-1. 改根目录或 `sender/`，接收端升 `RECEIVER_BUILD` 与 `sw.js` `CACHE_NAME`。
-2. `node sync-receiver.mjs`，`npm test`，`npm run build`。
-3. `git push origin main`。Pages 从 `main` 根目录自动发布。
-4. 核对 https://shuipashui.github.io/airferry-lite/app.js 里 `RECEIVER_BUILD`。
-
-## 11. 许可证
-
-MIT。第三方见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+引用上游代码时遵守其 MIT 许可证，并保留必要版权和许可证文本。设计思路可以借鉴，但不要未经验证就将上游参数
+作为 Lite 的默认值。
