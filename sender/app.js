@@ -56,6 +56,12 @@
       ["24", "24 FPS"],
       ["30", "30 FPS"],
       ["60", "60 FPS"]
+    ],
+    dual_col: [
+      ["20", "20 FPS"],
+      ["24", "24 FPS"],
+      ["30", "30 FPS"],
+      ["60", "60 FPS"]
     ]
   };
   const CHUNK_CHOICES = {
@@ -84,6 +90,14 @@
       ["1732", "1732 B"],
       ["1952", "1952 B"],
       ["2068", "2068 B"]
+    ],
+    dual_col: [
+      ["1003", "1003 B"],
+      ["1273", "1273 B"],
+      ["1465", "1465 B"],
+      ["1732", "1732 B"],
+      ["1952", "1952 B"],
+      ["2068", "2068 B"]
     ]
   };
   const HIGH_QUEUE_LIMIT = 8;
@@ -94,6 +108,7 @@
   const QUAD_PAIRS = [[0, 3], [1, 2]];
   const DUAL_SLOTS = [0, 1];
   const DUAL_DIAGONAL_SLOTS = [0, 3];
+  const DUAL_COLUMN_SLOTS = [0, 2];
   let files = [];
   let transfer = null;
   let animationFrame = 0;
@@ -128,12 +143,14 @@
 
   function codesForMode(mode) {
     if (mode === "quad") return 4;
-    if (mode === "dual" || mode === "dual_diag") return 2;
+    if (mode === "dual" || mode === "dual_diag" || mode === "dual_col") return 2;
     return 1;
   }
 
   function dualSlots() {
-    return qrMode.value === "dual_diag" ? DUAL_DIAGONAL_SLOTS : DUAL_SLOTS;
+    if (qrMode.value === "dual_diag") return DUAL_DIAGONAL_SLOTS;
+    if (qrMode.value === "dual_col") return DUAL_COLUMN_SLOTS;
+    return DUAL_SLOTS;
   }
 
   function layoutShape(codes) {
@@ -518,8 +535,8 @@
       ? (quadRefreshesAll() ? "正在循环播放 · 四码整屏同换" : "正在循环播放 · 四码交错换对角")
       : codesPerScreen === 2
         ? (dualUpdatesBoth()
-          ? (qrMode.value === "dual_diag" ? "正在循环播放 · 双码对角同时更新（实验）" : "正在循环播放 · 双码上排同时更新")
-          : (qrMode.value === "dual_diag" ? "正在循环播放 · 双码对角交替更新（实验）" : "正在循环播放 · 双码上排交替更新"))
+          ? (qrMode.value === "dual_diag" ? "正在循环播放 · 双码对角同时更新（实验）" : qrMode.value === "dual_col" ? "正在循环播放 · 双码纵列同时更新（滚快实验）" : "正在循环播放 · 双码上排同时更新")
+          : (qrMode.value === "dual_diag" ? "正在循环播放 · 双码对角交替更新（实验）" : qrMode.value === "dual_col" ? "正在循环播放 · 双码纵列交替更新（滚快实验）" : "正在循环播放 · 双码上排交替更新"))
         : "正在循环播放";
     if (!measuredRefreshHz) return playing;
     const interval = updateIntervalVsyncs();
@@ -1102,7 +1119,9 @@
     if (rate.codes === 4) text += "。30 FPS 四码整屏同换；60 FPS 仍交错换对角，避免四格同刷拖影";
     if (rate.codes === 2) text += qrMode.value === "dual_diag"
       ? "。实验模式：双码占左上和右下。60 FPS 两格同时更新"
-      : "。双码只占 2×2 上排。60 FPS 两格同时更新。打开预填 2068 B · 60 FPS";
+      : qrMode.value === "dual_col"
+        ? "。滚动快门实验：双码占左上和左下，使两码落在相近的传感器扫描时刻。60 FPS 两格同时更新"
+        : "。双码只占 2×2 上排。60 FPS 两格同时更新。打开预填 2068 B · 60 FPS";
     if (rate.codes === 4 && rate.cell && rate.cell < 3) text += "。模块偏小，请全屏后再播";
     if (rate.codes === 2 && rate.cell && rate.cell < 3) text += "。模块偏小，请全屏后再播";
     if (rate.codes === 4 && rate.fps >= 60 && (measuredRefreshHz || 60) < 90) text += "。60 Hz 屏上四码 60 FPS 容易拖影，改用 30 FPS 通常更快";
@@ -1113,7 +1132,7 @@
 
   function layoutName() {
     const mode = qrMode.value;
-    return mode === "quad" || mode === "dual" || mode === "dual_diag" ? mode : "single";
+    return mode === "quad" || mode === "dual" || mode === "dual_diag" || mode === "dual_col" ? mode : "single";
   }
 
   function fillSelect(select, choices) {
@@ -1145,7 +1164,7 @@
     let cap = Math.max(20, Math.floor(hz / 2));
     if (layout === "single") cap = Math.min(cap, 30);
     if (layout === "quad" && hz < 90) cap = Math.min(cap, 30);
-    if (layout === "dual" || layout === "dual_diag") cap = Math.min(hz, 60);
+    if (layout === "dual" || layout === "dual_diag" || layout === "dual_col") cap = Math.min(hz, 60);
     const picked = [...allowed].reverse().find((value) => value <= cap);
     return String(picked || 30);
   }
