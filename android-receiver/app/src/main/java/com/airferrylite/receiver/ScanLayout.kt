@@ -154,6 +154,37 @@ internal object ScanLayout {
         return candidates.distinct().filter { it != tile }
     }
 
+    /**
+     * Move a proven pair as one rigid unit from either visible member. This keeps the
+     * missing crop aligned when the phone shifts and only one QR decodes in a frame.
+     */
+    fun followPairFromHit(
+        pair: List<ScanRegion>,
+        points: List<Pair<Float, Float>>,
+        imageWidth: Int,
+        imageHeight: Int
+    ): List<ScanRegion> {
+        if (pair.size != 2 || points.isEmpty()) return pair
+        val fresh = regionFromPoints(points, imageWidth, imageHeight, 1)?.let {
+            inflate(it, 1.18f, imageWidth, imageHeight)
+        } ?: return pair
+        val hitCx = points.map { it.first }.average()
+        val hitCy = points.map { it.second }.average()
+        val owner = pair.indices.minByOrNull { index ->
+            val tile = pair[index]
+            val dx = hitCx - (tile.left + tile.width / 2.0)
+            val dy = hitCy - (tile.top + tile.height / 2.0)
+            dx * dx + dy * dy
+        } ?: return pair
+        val anchor = pair[owner]
+        val dx = (fresh.left + fresh.width / 2) - (anchor.left + anchor.width / 2)
+        val dy = (fresh.top + fresh.height / 2) - (anchor.top + anchor.height / 2)
+        return pair.mapIndexed { index, tile ->
+            if (index == owner) fresh
+            else clampRect(ScanRegion(tile.left + dx, tile.top + dy, tile.width, tile.height), imageWidth, imageHeight)
+        }
+    }
+
     fun exclusiveQuadrants(region: ScanRegion): List<ScanRegion> {
         val halfW = (region.width / 2).coerceAtLeast(1)
         val halfH = (region.height / 2).coerceAtLeast(1)

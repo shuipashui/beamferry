@@ -238,6 +238,20 @@ class QrFrameAnalyzer(
 
     private fun decodeFrame(luma: LumaSnapshot, region: ScanRegion, maxSymbols: Int): List<NativeHit> {
         if (!multiLayout.get()) {
+            val cachedPair = stableDualTiles.get().orEmpty()
+            if (cachedPair.size == 2) {
+                val cachedHits = readCropsParallel(
+                    luma,
+                    cachedPair.map { ScanLayout.inflateRect(it, 1.35f, luma.width, luma.height) },
+                    retryBinarizer = false,
+                    maxSymbols = 2,
+                    trackDualSlots = true
+                )
+                if (cachedHits.isNotEmpty()) {
+                    bootstrapRetryTick.set(0)
+                    return cachedHits
+                }
+            }
             val retryBootstrap = bootstrapRetryTick.incrementAndGet() >= BOOTSTRAP_RETRY_INTERVAL
             if (retryBootstrap) {
                 bootstrapRetryTick.set(0)
@@ -275,7 +289,7 @@ class QrFrameAnalyzer(
         val lockedDual = dualStream.get() && !quadStream.get()
         if (previousTiles.isNotEmpty()) {
             val crops = if (lockedDual && previousTiles.size == 2) {
-                previousTiles.map { ScanLayout.inflateRect(it, 1.08f, luma.width, luma.height) }
+                previousTiles.map { ScanLayout.inflateRect(it, 1.22f, luma.width, luma.height) }
             } else {
                 previousTiles
             }
@@ -580,11 +594,16 @@ class QrFrameAnalyzer(
                 tileUndercount.set(0)
                 val next = when {
                     hits.size >= 2 -> ScanLayout.tilesFromHits(perCode, imageWidth, imageHeight)
-                    stableDualTiles.get()?.size == 2 -> stableDualTiles.get().orEmpty()
+                    stableDualTiles.get()?.size == 2 -> ScanLayout.followPairFromHit(
+                        stableDualTiles.get().orEmpty(),
+                        perCode.first(),
+                        imageWidth,
+                        imageHeight
+                    )
                     else -> listOfNotNull(ScanLayout.tileFromHit(perCode.first(), imageWidth, imageHeight))
                 }
                 trackedTiles.set(next)
-                if (hits.size >= 2 && next.size == 2) stableDualTiles.set(next)
+                if (next.size == 2) stableDualTiles.set(next)
             }
             hits.size >= 3 -> {
                 tileUndercount.set(0)

@@ -273,4 +273,20 @@ class ScanLayoutTest {
         assertTrue(candidates.any { it.top < tile.top })
         assertTrue(candidates.any { it.top > tile.top })
     }
+
+    @Test
+    fun oneVisibleMemberMovesTheWholePair() {
+        val pair = listOf(
+            ScanRegion(500, 200, 220, 220),
+            ScanRegion(500, 440, 220, 220)
+        )
+        val movedHit = listOf(540f to 260f, 740f to 260f, 740f to 460f, 540f to 460f)
+        val followed = ScanLayout.followPairFromHit(pair, movedHit, 1920, 1440)
+        assertEquals(2, followed.size)
+        assertTrue(followed[0].left > pair[0].left)
+        assertTrue(followed[1].left > pair[1].left)
+        val oldGap = pair[1].top - pair[0].top
+        val newGap = followed[1].top - followed[0].top
+        assertTrue(kotlin.math.abs(newGap - oldGap) < 40)
+    }
 }
