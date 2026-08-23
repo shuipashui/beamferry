@@ -42,7 +42,9 @@ data class ScanStats(
     val quadLayout: Boolean = false,
     val dualCompleteFrames: Long = 0,
     val dualPartialFrames: Long = 0,
-    val dualRecoveryScans: Long = 0
+    val dualRecoveryScans: Long = 0,
+    val dualLeftCropHits: Long = 0,
+    val dualRightCropHits: Long = 0
 )
 
 /** Latest-frame zxing-cpp scan on the CameraX analyzer thread. */
@@ -89,6 +91,8 @@ class QrFrameAnalyzer(
     private val dualPartialFrames = AtomicLong(0)
     private val dualRecoveryScans = AtomicLong(0)
     private val dualRecoveryTick = AtomicInteger(0)
+    private val dualLeftCropHits = AtomicLong(0)
+    private val dualRightCropHits = AtomicLong(0)
 
     override fun analyze(image: ImageProxy) {
         capturedInWindow.incrementAndGet()
@@ -216,6 +220,8 @@ class QrFrameAnalyzer(
         dualPartialFrames.set(0)
         dualRecoveryScans.set(0)
         dualRecoveryTick.set(0)
+        dualLeftCropHits.set(0)
+        dualRightCropHits.set(0)
     }
 
     private fun chooseRegion(width: Int, height: Int): ScanRegion {
@@ -269,7 +275,8 @@ class QrFrameAnalyzer(
                     luma,
                     scanCrops,
                     retryBinarizer = false,
-                    maxSymbols = 1
+                    maxSymbols = if (lockedDual) 2 else 1,
+                    trackDualSlots = lockedDual
                 )
             )
         }
@@ -318,7 +325,15 @@ class QrFrameAnalyzer(
                         )
                     else -> ScanLayout.coverageQuadrants(luma.width, luma.height)
                 }
-                add(readCropsParallel(luma, retry, retryBinarizer = false, maxSymbols = 1))
+                add(
+                    readCropsParallel(
+                        luma,
+                        retry,
+                        retryBinarizer = false,
+                        maxSymbols = 2,
+                        trackDualSlots = true
+                    )
+                )
             }
             return merged
         }
@@ -342,7 +357,8 @@ class QrFrameAnalyzer(
         luma: LumaSnapshot,
         crops: List<ScanRegion>,
         retryBinarizer: Boolean,
-        maxSymbols: Int = 1
+        maxSymbols: Int = 1,
+        trackDualSlots: Boolean = false
     ): List<NativeHit> {
         if (crops.isEmpty()) return emptyList()
         val symbols = maxSymbols.coerceIn(1, 4)
@@ -352,7 +368,14 @@ class QrFrameAnalyzer(
         return try {
             jobs.mapIndexed { index, crop ->
                 tileExecutor.submit(Callable {
-                    tileDecoders[index].read(luma, crop, symbols, retryBinarizer)
+                    tileDecoders[index].read(luma, crop, symbols, retryBinarizer).also { hits ->
+                        if (trackDualSlots && hits.any { hit ->
+                                QrPayload.isTransfer(QrPayload.bytesFrom(hit.bytes, hit.text))
+                            }) {
+                            if (index == 0) dualLeftCropHits.incrementAndGet()
+                            else if (index == 1) dualRightCropHits.incrementAndGet()
+                        }
+                    }
                 })
             }.flatMap { it.get() }
         } finally {
@@ -612,7 +635,9 @@ class QrFrameAnalyzer(
                 quadLayout = quadStream.get(),
                 dualCompleteFrames = dualCompleteFrames.get(),
                 dualPartialFrames = dualPartialFrames.get(),
-                dualRecoveryScans = dualRecoveryScans.get()
+                dualRecoveryScans = dualRecoveryScans.get(),
+                dualLeftCropHits = dualLeftCropHits.get(),
+                dualRightCropHits = dualRightCropHits.get()
             )
         )
     }
