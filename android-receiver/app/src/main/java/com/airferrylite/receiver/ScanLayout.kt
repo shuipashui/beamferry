@@ -16,6 +16,195 @@ internal object ScanLayout {
         return ScanRegion((width - side) / 2, (height - side) / 2, side, side)
     }
 
+    /** Left/right overlapping halves — dual sender codes sit on the top row of a 2×2 canvas. */
+    fun dualHalves(region: ScanRegion): List<ScanRegion> {
+        val cropW = ((0.5f + QUAD_OVERLAP) * region.width).toInt().coerceIn(1, region.width)
+        val right = region.left + region.width - cropW
+        return listOf(
+            ScanRegion(region.left, region.top, cropW, region.height),
+            ScanRegion(right, region.top, cropW, region.height)
+        )
+    }
+
+    /** Top/bottom overlapping halves in the unrotated camera sensor buffer. */
+    fun dualVerticalHalves(region: ScanRegion): List<ScanRegion> {
+        val cropH = ((0.5f + QUAD_OVERLAP) * region.height).toInt().coerceIn(1, region.height)
+        val bottom = region.top + region.height - cropH
+        return listOf(
+            ScanRegion(region.left, region.top, region.width, cropH),
+            ScanRegion(region.left, bottom, region.width, cropH)
+        )
+    }
+
+    /** Probe both possible sensor axes without cutting a centered QR in half. */
+    fun dualAxisHalves(region: ScanRegion): List<ScanRegion> =
+        dualHalves(region) + dualVerticalHalves(region)
+
+    /** Top-left and top-right overlapping tiles — exclusive 2×2 splits codes on the midline. */
+    fun dualTopTiles(region: ScanRegion): List<ScanRegion> = overlappingQuadrants(region).take(2)
+
+    /**
+     * Overlapping 2×2 covering the whole analysis buffer so first hits do not depend on
+     * an invisible center square. 58% crops stay small enough for 2068 B dual codes.
+     */
+    fun coverageQuadrants(width: Int, height: Int): List<ScanRegion> {
+        val cropW = (width * 0.58f).toInt().coerceIn(1, width)
+        val cropH = (height * 0.58f).toInt().coerceIn(1, height)
+        val right = (width - cropW).coerceAtLeast(0)
+        val bottom = (height - cropH).coerceAtLeast(0)
+        return listOf(
+            ScanRegion(0, 0, cropW, cropH),
+            ScanRegion(right, 0, cropW, cropH),
+            ScanRegion(0, bottom, cropW, cropH),
+            ScanRegion(right, bottom, cropW, cropH)
+        )
+    }
+
+    fun horizontalSibling(tile: ScanRegion, width: Int, height: Int): ScanRegion {
+        val shift = (tile.width * 1.08f).toInt().coerceAtLeast(1)
+        val right = clamp(ScanRegion(tile.left + shift, tile.top, tile.width, tile.height), width, height)
+        val left = clamp(ScanRegion(tile.left - shift, tile.top, tile.width, tile.height), width, height)
+        val tileMid = tile.left + tile.width / 2
+        val rightSep = kotlin.math.abs((right.left + right.width / 2) - tileMid)
+        val leftSep = kotlin.math.abs((left.left + left.width / 2) - tileMid)
+        val roomRight = tile.left + shift + tile.width <= width
+        return if (roomRight && rightSep >= tile.width / 2) right
+        else if (leftSep >= tile.width / 2) left
+        else right
+    }
+
+    fun pairFromHit(
+        points: List<Pair<Float, Float>>,
+        imageWidth: Int,
+        imageHeight: Int
+    ): List<ScanRegion> {
+        val tile = regionFromPoints(points, imageWidth, imageHeight, 1)?.let {
+            inflate(it, 1.18f, imageWidth, imageHeight)
+        } ?: return emptyList()
+        return listOf(tile, horizontalSibling(tile, imageWidth, imageHeight)).sortedBy { it.left }
+    }
+
+    /**
+     * Wide rectangle covering one decoded QR plus its horizontal neighbor.
+     * Must not go through clamp() — that forces a square and clips the sibling
+     * (0.8.102 格 2 每帧 0.65).
+     */
+    fun pairBandFromHit(
+        points: List<Pair<Float, Float>>,
+        imageWidth: Int,
+        imageHeight: Int
+    ): ScanRegion? {
+        if (points.isEmpty() || imageWidth <= 0 || imageHeight <= 0) return null
+        var minX = Float.POSITIVE_INFINITY
+        var minY = Float.POSITIVE_INFINITY
+        var maxX = Float.NEGATIVE_INFINITY
+        var maxY = Float.NEGATIVE_INFINITY
+        for ((x, y) in points) {
+            minX = min(minX, x)
+            minY = min(minY, y)
+            maxX = max(maxX, x)
+            maxY = max(maxY, y)
+        }
+        val qr = max(maxX - minX, maxY - minY).coerceAtLeast(1f)
+        val bandW = (qr * 2.22f).toInt().coerceIn(MIN_SIDE, imageWidth)
+        val bandH = (qr * 1.22f).toInt().coerceIn(MIN_SIDE, imageHeight)
+        val cx = (minX + maxX) / 2f
+        val cy = (minY + maxY) / 2f
+        val preferRight = cx < imageWidth / 2f
+        val left = if (preferRight) {
+            (cx - qr * 0.58f).toInt()
+        } else {
+            (cx + qr * 0.58f).toInt() - bandW
+        }
+        return clampRect(ScanRegion(left, (cy - bandH / 2f).toInt(), bandW, bandH), imageWidth, imageHeight)
+    }
+
+    fun dualTilesFromOneHit(
+        points: List<Pair<Float, Float>>,
+        imageWidth: Int,
+        imageHeight: Int
+    ): List<ScanRegion> {
+        val band = pairBandFromHit(points, imageWidth, imageHeight) ?: return emptyList()
+        return dualHalves(band)
+    }
+
+    /** Tight crop around one decoded QR, preserving room for its quiet zone. */
+    fun tileFromHit(
+        points: List<Pair<Float, Float>>,
+        imageWidth: Int,
+        imageHeight: Int
+    ): ScanRegion? {
+        if (points.isEmpty() || imageWidth <= 0 || imageHeight <= 0) return null
+        val minX = points.minOf { it.first }
+        val maxX = points.maxOf { it.first }
+        val minY = points.minOf { it.second }
+        val maxY = points.maxOf { it.second }
+        // Bootstrap crops are deliberately wider than steady-state tracked tiles.
+        // They must tolerate quiet-zone size, perspective and small framing changes.
+        val side = (max(maxX - minX, maxY - minY) * 1.38f).toInt().coerceAtLeast(MIN_SIDE)
+        val cx = (minX + maxX) / 2f
+        val cy = (minY + maxY) / 2f
+        return clamp(ScanRegion((cx - side / 2f).toInt(), (cy - side / 2f).toInt(), side, side), imageWidth, imageHeight)
+    }
+
+    /**
+     * Camera Y is decoded without display rotation, so a visually horizontal pair may
+     * be vertical in sensor coordinates. Probe every adjacent direction until the
+     * second protocol-distinct QR establishes the real pair axis.
+     */
+    fun siblingCandidatesFromHit(
+        points: List<Pair<Float, Float>>,
+        imageWidth: Int,
+        imageHeight: Int
+    ): List<ScanRegion> {
+        val tile = tileFromHit(points, imageWidth, imageHeight) ?: return emptyList()
+        // The tracked tile is 1.38× the detected symbol while adjacent sender cells
+        // are only about one symbol-width apart, so 0.78× lands near the sibling.
+        val shift = (tile.width * 0.78f).toInt().coerceAtLeast(1)
+        val candidates = listOf(
+            ScanRegion(tile.left - shift, tile.top, tile.width, tile.height),
+            ScanRegion(tile.left + shift, tile.top, tile.width, tile.height),
+            ScanRegion(tile.left, tile.top - shift, tile.width, tile.height),
+            ScanRegion(tile.left, tile.top + shift, tile.width, tile.height),
+            ScanRegion(tile.left - shift, tile.top - shift, tile.width, tile.height),
+            ScanRegion(tile.left + shift, tile.top - shift, tile.width, tile.height),
+            ScanRegion(tile.left - shift, tile.top + shift, tile.width, tile.height),
+            ScanRegion(tile.left + shift, tile.top + shift, tile.width, tile.height)
+        ).map { clamp(it, imageWidth, imageHeight) }
+        return candidates.distinct().filter { it != tile }
+    }
+
+    /**
+     * Move a proven pair as one rigid unit from either visible member. This keeps the
+     * missing crop aligned when the phone shifts and only one QR decodes in a frame.
+     */
+    fun followPairFromHit(
+        pair: List<ScanRegion>,
+        points: List<Pair<Float, Float>>,
+        imageWidth: Int,
+        imageHeight: Int
+    ): List<ScanRegion> {
+        if (pair.size != 2 || points.isEmpty()) return pair
+        val fresh = regionFromPoints(points, imageWidth, imageHeight, 1)?.let {
+            inflate(it, 1.18f, imageWidth, imageHeight)
+        } ?: return pair
+        val hitCx = points.map { it.first }.average()
+        val hitCy = points.map { it.second }.average()
+        val owner = pair.indices.minByOrNull { index ->
+            val tile = pair[index]
+            val dx = hitCx - (tile.left + tile.width / 2.0)
+            val dy = hitCy - (tile.top + tile.height / 2.0)
+            dx * dx + dy * dy
+        } ?: return pair
+        val anchor = pair[owner]
+        val dx = (fresh.left + fresh.width / 2) - (anchor.left + anchor.width / 2)
+        val dy = (fresh.top + fresh.height / 2) - (anchor.top + anchor.height / 2)
+        return pair.mapIndexed { index, tile ->
+            if (index == owner) fresh
+            else clampRect(ScanRegion(tile.left + dx, tile.top + dy, tile.width, tile.height), imageWidth, imageHeight)
+        }
+    }
+
     fun exclusiveQuadrants(region: ScanRegion): List<ScanRegion> {
         val halfW = (region.width / 2).coerceAtLeast(1)
         val halfH = (region.height / 2).coerceAtLeast(1)
@@ -78,13 +267,12 @@ internal object ScanLayout {
     }
 
     fun union(first: ScanRegion?, second: ScanRegion, imageWidth: Int, imageHeight: Int): ScanRegion {
-        if (first == null) return clamp(second, imageWidth, imageHeight)
+        if (first == null) return clampRect(second, imageWidth, imageHeight)
         val left = min(first.left, second.left)
         val top = min(first.top, second.top)
         val right = max(first.left + first.width, second.left + second.width)
         val bottom = max(first.top + first.height, second.top + second.height)
-        val side = max(right - left, bottom - top)
-        return clamp(ScanRegion(left, top, side, side), imageWidth, imageHeight)
+        return clampRect(ScanRegion(left, top, right - left, bottom - top), imageWidth, imageHeight)
     }
 
     fun clamp(region: ScanRegion, width: Int, height: Int): ScanRegion {
@@ -96,6 +284,25 @@ internal object ScanLayout {
         val side = min(cropW, cropH)
         if (side < MIN_SIDE) return centerSquare(width, height)
         return ScanRegion(left, top, side, side)
+    }
+
+    fun clampRect(region: ScanRegion, width: Int, height: Int): ScanRegion {
+        if (width <= 0 || height <= 0) return centerSquare(1, 1)
+        val left = region.left.coerceIn(0, (width - 1).coerceAtLeast(0))
+        val top = region.top.coerceIn(0, (height - 1).coerceAtLeast(0))
+        val cropW = region.width.coerceAtLeast(1).coerceAtMost(width - left)
+        val cropH = region.height.coerceAtLeast(1).coerceAtMost(height - top)
+        if (cropW < MIN_SIDE || cropH < MIN_SIDE) return centerSquare(width, height)
+        return ScanRegion(left, top, cropW, cropH)
+    }
+
+    fun inflateRect(region: ScanRegion, factor: Float, width: Int, height: Int): ScanRegion {
+        val grow = factor.coerceAtLeast(1f)
+        val nw = (region.width * grow).toInt().coerceAtLeast(MIN_SIDE)
+        val nh = (region.height * grow).toInt().coerceAtLeast(MIN_SIDE)
+        val cx = region.left + region.width / 2
+        val cy = region.top + region.height / 2
+        return clampRect(ScanRegion(cx - nw / 2, cy - nh / 2, nw, nh), width, height)
     }
 
     fun tilesFromHits(
@@ -180,8 +387,10 @@ internal object ScanLayout {
 
     fun activeRegion(tracked: ScanRegion?, misses: Int, width: Int, height: Int): ScanRegion {
         if (tracked == null || misses >= ROI_MISS_LIMIT) return centerSquare(width, height)
-        val clamped = clamp(tracked, width, height)
+        val wide = tracked.width > tracked.height * 1.12f
+        val clamped = if (wide) clampRect(tracked, width, height) else clamp(tracked, width, height)
         if (misses <= 0) return clamped
-        return inflate(clamped, 1f + misses * 0.22f, width, height)
+        val grow = 1f + misses * 0.22f
+        return if (wide) inflateRect(clamped, grow, width, height) else inflate(clamped, grow, width, height)
     }
 }

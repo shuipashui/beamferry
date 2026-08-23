@@ -41,6 +41,7 @@
       ["20", "20 FPS"],
       ["24", "24 FPS"],
       ["30", "30 FPS"],
+      ["50", "50 FPS（60 Hz 5/6 节拍实验）"],
       ["60", "60 FPS（高刷）"],
       ["90", "90 FPS（高刷）"],
       ["120", "120 FPS（高刷）"]
@@ -49,6 +50,7 @@
       ["20", "20 FPS"],
       ["24", "24 FPS"],
       ["30", "30 FPS"],
+      ["50", "50 FPS（60 Hz 滚快）"],
       ["60", "60 FPS"]
     ]
   };
@@ -106,6 +108,7 @@
   let livePatterns = [null, null, null, null];
   let liveSeqs = [0, 0, 0, 0];
   let vsyncPhase = 0;
+  let fractionalVsyncCredit = 0;
   let vsyncsPerQr = 2;
   let lastRafAt = 0;
   let measuredRefreshHz = 0;
@@ -115,6 +118,10 @@
     if (mode === "quad") return 4;
     if (mode === "dual") return 2;
     return 1;
+  }
+
+  function dualSlots() {
+    return DUAL_SLOTS;
   }
 
   function layoutShape(codes) {
@@ -439,6 +446,9 @@
     lastTickAt = 0;
     lastRafAt = 0;
     vsyncPhase = 0;
+    // The first screen is already painted while preparing. Start at zero so a
+    // 60/50 cadence produces exactly five replacements per six vsyncs.
+    fractionalVsyncCredit = 0;
     rafSamples.length = 0;
     measuredRefreshHz = 0;
     vsyncsPerQr = vsyncsForFps(60, Number(fps.value));
@@ -470,10 +480,19 @@
       }
     }
     lastRafAt = timestamp;
-    vsyncPhase += 1;
-    if (vsyncPhase >= updateIntervalVsyncs()) {
-      vsyncPhase = 0;
-      tick();
+    if (usesFractionalCadence()) {
+      fractionalVsyncCredit += Number(fps.value);
+      const refresh = measuredRefreshHz || 60;
+      if (fractionalVsyncCredit >= refresh) {
+        fractionalVsyncCredit -= refresh;
+        tick();
+      }
+    } else {
+      vsyncPhase += 1;
+      if (vsyncPhase >= updateIntervalVsyncs()) {
+        vsyncPhase = 0;
+        tick();
+      }
     }
     animationFrame = requestAnimationFrame(playLoop);
   }
@@ -498,9 +517,12 @@
     const playing = codesPerScreen === 4
       ? (quadRefreshesAll() ? "正在循环播放 · 四码整屏同换" : "正在循环播放 · 四码交错换对角")
       : codesPerScreen === 2
-        ? (dualUpdatesBoth() ? "正在循环播放 · 双码上排同时更新" : "正在循环播放 · 双码上排交替更新")
+        ? (dualUpdatesBoth()
+          ? "正在循环播放 · 双码上排同时更新"
+          : "正在循环播放 · 双码上排交替更新")
         : "正在循环播放";
     if (!measuredRefreshHz) return playing;
+    if (usesFractionalCadence()) return playing + " · 屏 " + measuredRefreshHz + " Hz · 分数节拍换码 " + fps.value + " 次/秒";
     const interval = updateIntervalVsyncs();
     const unit = codesPerScreen === 4
       ? (quadRefreshesAll() ? "一屏" : "一对")
@@ -509,7 +531,13 @@
   }
 
   function dualUpdatesBoth() {
-    return codesPerScreen === 2 && Number(fps.value) >= 60;
+    return codesPerScreen === 2 && Number(fps.value) >= 50;
+  }
+
+  function usesFractionalCadence() {
+    const target = Number(fps.value);
+    const refresh = measuredRefreshHz || 60;
+    return (codesPerScreen === 2 || codesPerScreen === 4) && target > 0 && target < refresh && refresh % target !== 0;
   }
 
   function dualStaggers() {
@@ -535,7 +563,7 @@
     frameText.textContent = codesPerScreen === 4
       ? "四码 " + liveSeqs.join(",") + " · K=" + transfer.total
       : codesPerScreen === 2
-        ? "双码 " + DUAL_SLOTS.map((slot) => liveSeqs[slot]).join(",") + " · K=" + transfer.total
+        ? "双码 " + dualSlots().map((slot) => liveSeqs[slot]).join(",") + " · K=" + transfer.total
         : "喷泉帧 " + next.seqs.join(",") + " · K=" + transfer.total;
     progressBar.style.width = Math.min(100, emitted / Math.ceil(transfer.total * 1.15) * 100) + "%";
   }
@@ -580,11 +608,12 @@
       return { pair, indices, seqs: packed.map((item) => item.seq), packed };
     }
     if (codesPerScreen === 2) {
+      const slots = dualSlots();
       if (dualUpdatesBoth()) {
-        const packed = DUAL_SLOTS.map(() => takePackedCode());
-        return { indices: DUAL_SLOTS, seqs: packed.map((item) => item.seq), packed };
+        const packed = slots.map(() => takePackedCode());
+        return { indices: slots, seqs: packed.map((item) => item.seq), packed };
       }
-      const slot = DUAL_SLOTS[highNextPair & 1];
+      const slot = slots[highNextPair & 1];
       highNextPair ^= 1;
       const packed = [takePackedCode()];
       return { indices: [slot], seqs: packed.map((item) => item.seq), packed };
@@ -1077,8 +1106,10 @@
     const rate = currentLayout();
     let text = "理论速度：" + formatRate(rate.screen) + "（" + rate.bytes + " B × " + rate.codes + " 码 × " + rate.fps + " FPS）· 载荷约 " + formatRate(rate.payload);
     if (rate.scale) text += " · 每模块 " + rate.scale + " 设备像素（整数）";
-    if (rate.codes === 4) text += "。30 FPS 四码整屏同换；60 FPS 仍交错换对角，避免四格同刷拖影";
-    if (rate.codes === 2) text += "。双码只占 2×2 上排。60 FPS 两格同时更新。打开预填 2068 B · 60 FPS";
+    if (rate.codes === 4) text += rate.fps === 50
+      ? "。50 FPS 实验档：60 Hz 下按 6 个 vsync 更新 5 次，四码整屏同换"
+      : "。30 FPS 四码整屏同换；60 FPS 仍交错换对角，避免四格同刷拖影";
+    if (rate.codes === 2) text += "。双码只占 2×2 上排。50 FPS 使用 60 Hz 的 5/6 vsync 节拍；打开预填 2068 B · 50 FPS";
     if (rate.codes === 4 && rate.cell && rate.cell < 3) text += "。模块偏小，请全屏后再播";
     if (rate.codes === 2 && rate.cell && rate.cell < 3) text += "。模块偏小，请全屏后再播";
     if (rate.codes === 4 && rate.fps >= 60 && (measuredRefreshHz || 60) < 90) text += "。60 Hz 屏上四码 60 FPS 容易拖影，改用 30 FPS 通常更快";
@@ -1121,7 +1152,7 @@
     let cap = Math.max(20, Math.floor(hz / 2));
     if (layout === "single") cap = Math.min(cap, 30);
     if (layout === "quad" && hz < 90) cap = Math.min(cap, 30);
-    if (layout === "dual") cap = Math.min(hz, 60);
+    if (layout === "dual") cap = Math.min(hz, 50);
     const picked = [...allowed].reverse().find((value) => value <= cap);
     return String(picked || 30);
   }

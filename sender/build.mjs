@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(here);
-const read = value => fs.readFileSync(value, "utf8");
+// Keep the generated single-file sender byte-identical on Windows and Linux.
+const read = value => fs.readFileSync(value, "utf8").replaceAll("\r\n", "\n");
 
 let html = read(path.join(here, "template.html"));
 const inject = (marker, file) => html = html.replace(marker, () => read(file));

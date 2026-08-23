@@ -172,4 +172,134 @@ class ScanLayoutTest {
         assertEquals(tiles[1].left, tiles[0].left + tiles[0].width)
         assertEquals(tiles[2].top, tiles[0].top + tiles[0].height)
     }
+
+    @Test
+    fun dualHalvesAreLeftAndRightOverlapping() {
+        val region = ScanRegion(0, 0, 1000, 800)
+        val halves = ScanLayout.dualHalves(region)
+        assertEquals(2, halves.size)
+        assertEquals(0, halves[0].left)
+        assertTrue(halves[0].left + halves[0].width > halves[1].left)
+        assertEquals(region.top, halves[0].top)
+        assertEquals(region.height, halves[0].height)
+        assertEquals(region.height, halves[1].height)
+    }
+
+    @Test
+    fun pairBandFromHitExpandsTowardTheSibling() {
+        val leftCode = listOf(100f to 200f, 300f to 200f, 100f to 400f, 300f to 400f)
+        val band = ScanLayout.pairBandFromHit(leftCode, 1440, 1440)
+        assertTrue(band != null)
+        assertTrue(band!!.width >= 400)
+        assertTrue(band.width > band.height)
+        assertTrue(band.left <= 100)
+        assertTrue(band.left + band.width > 400)
+        val halves = ScanLayout.dualTilesFromOneHit(leftCode, 1440, 1440)
+        assertEquals(2, halves.size)
+        assertTrue(halves[0].left < halves[1].left)
+        assertEquals(band.top, halves[0].top)
+        assertEquals(band.height, halves[0].height)
+        assertEquals(band.height, halves[1].height)
+    }
+
+    @Test
+    fun unionOfTwoDualTilesStaysWide() {
+        val left = ScanRegion(100, 220, 420, 280)
+        val right = ScanRegion(400, 220, 420, 280)
+        val merged = ScanLayout.union(left, right, 1440, 1440)
+        assertTrue(merged.width > merged.height)
+        assertTrue(merged.width >= 700)
+        val halves = ScanLayout.dualHalves(merged)
+        assertEquals(2, halves.size)
+        assertTrue(halves[1].left + halves[1].width > 700)
+    }
+
+    @Test
+    fun pairFromHitPlacesAHorizontalSibling() {
+        val points = listOf(100f to 100f, 300f to 100f, 100f to 300f, 300f to 300f)
+        val pair = ScanLayout.pairFromHit(points, 1440, 1440)
+        assertEquals(2, pair.size)
+        assertTrue(pair[0].left < pair[1].left)
+        assertTrue(pair[1].left + pair[1].width <= 1440)
+        val gap = pair[1].left - (pair[0].left + pair[0].width / 2)
+        assertTrue(gap > 0)
+    }
+
+    @Test
+    fun dualHalvesOfPreviewCoverLeftAndRight() {
+        val square = ScanLayout.centerSquare(1920, 1440)
+        val halves = ScanLayout.dualHalves(square)
+        assertEquals(2, halves.size)
+        assertEquals(square.left, halves[0].left)
+        assertEquals(square.left + square.width, halves[1].left + halves[1].width)
+        assertTrue(halves[0].width > square.width / 2)
+        assertTrue(halves[0].left + halves[0].width > halves[1].left)
+    }
+
+    @Test
+    fun dualTopTilesOverlapTheVerticalMidline() {
+        val square = ScanLayout.centerSquare(1920, 1440)
+        val top = ScanLayout.dualTopTiles(square)
+        val overlays = ScanLayout.overlappingQuadrants(square)
+        assertEquals(2, top.size)
+        assertEquals(overlays[0], top[0])
+        assertEquals(overlays[1], top[1])
+        val midX = square.left + square.width / 2
+        val midY = square.top + square.height / 2
+        assertTrue(top.any { midX in it.left until (it.left + it.width) && midY in it.top until (it.top + it.height) })
+    }
+
+    @Test
+    fun coverageQuadrantsCoverTheFullFrameMidline() {
+        val tiles = ScanLayout.coverageQuadrants(1920, 1440)
+        assertEquals(4, tiles.size)
+        val midX = 960
+        val midY = 720
+        assertTrue("center must sit in the overlap, not on an exclusive split", tiles.count {
+            midX in it.left until (it.left + it.width) && midY in it.top until (it.top + it.height)
+        } >= 2)
+        assertTrue(tiles.any { it.left == 0 && it.top == 0 })
+        assertTrue(tiles.any { it.left + it.width == 1920 && it.top + it.height == 1440 })
+    }
+
+    @Test
+    fun siblingCandidatesProbeBothAxes() {
+        val points = listOf(600f to 500f, 800f to 500f, 800f to 700f, 600f to 700f)
+        val tile = ScanLayout.tileFromHit(points, 1920, 1440)!!
+        val candidates = ScanLayout.siblingCandidatesFromHit(points, 1920, 1440)
+        assertEquals(4, candidates.size)
+        assertTrue(candidates.any { it.left < tile.left })
+        assertTrue(candidates.any { it.left > tile.left })
+        assertTrue(candidates.any { it.top < tile.top })
+        assertTrue(candidates.any { it.top > tile.top })
+    }
+
+    @Test
+    fun oneVisibleMemberMovesTheWholePair() {
+        val pair = listOf(
+            ScanRegion(500, 200, 220, 220),
+            ScanRegion(500, 440, 220, 220)
+        )
+        val movedHit = listOf(540f to 260f, 740f to 260f, 740f to 460f, 540f to 460f)
+        val followed = ScanLayout.followPairFromHit(pair, movedHit, 1920, 1440)
+        assertEquals(2, followed.size)
+        assertTrue(followed[0].left > pair[0].left)
+        assertTrue(followed[1].left > pair[1].left)
+        val oldGap = pair[1].top - pair[0].top
+        val newGap = followed[1].top - followed[0].top
+        assertTrue(kotlin.math.abs(newGap - oldGap) < 40)
+    }
+
+    @Test
+    fun verticalHalvesKeepTheFullWidthAndOverlap() {
+        val region = ScanRegion(240, 0, 1440, 1440)
+        val halves = ScanLayout.dualVerticalHalves(region)
+        assertEquals(2, halves.size)
+        assertEquals(region.left, halves[0].left)
+        assertEquals(region.width, halves[0].width)
+        assertEquals(region.width, halves[1].width)
+        assertTrue(halves[0].top + halves[0].height > halves[1].top)
+        assertEquals(region.top + region.height, halves[1].top + halves[1].height)
+        assertEquals(4, ScanLayout.dualAxisHalves(region).size)
+    }
 }
