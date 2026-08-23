@@ -26,6 +26,20 @@ internal object ScanLayout {
         )
     }
 
+    /** Top/bottom overlapping halves in the unrotated camera sensor buffer. */
+    fun dualVerticalHalves(region: ScanRegion): List<ScanRegion> {
+        val cropH = ((0.5f + QUAD_OVERLAP) * region.height).toInt().coerceIn(1, region.height)
+        val bottom = region.top + region.height - cropH
+        return listOf(
+            ScanRegion(region.left, region.top, region.width, cropH),
+            ScanRegion(region.left, bottom, region.width, cropH)
+        )
+    }
+
+    /** Probe both possible sensor axes without cutting a centered QR in half. */
+    fun dualAxisHalves(region: ScanRegion): List<ScanRegion> =
+        dualHalves(region) + dualVerticalHalves(region)
+
     /** Top-left and top-right overlapping tiles — exclusive 2×2 splits codes on the midline. */
     fun dualTopTiles(region: ScanRegion): List<ScanRegion> = overlappingQuadrants(region).take(2)
 

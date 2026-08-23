@@ -289,4 +289,17 @@ class ScanLayoutTest {
         val newGap = followed[1].top - followed[0].top
         assertTrue(kotlin.math.abs(newGap - oldGap) < 40)
     }
+
+    @Test
+    fun verticalHalvesKeepTheFullWidthAndOverlap() {
+        val region = ScanRegion(240, 0, 1440, 1440)
+        val halves = ScanLayout.dualVerticalHalves(region)
+        assertEquals(2, halves.size)
+        assertEquals(region.left, halves[0].left)
+        assertEquals(region.width, halves[0].width)
+        assertEquals(region.width, halves[1].width)
+        assertTrue(halves[0].top + halves[0].height > halves[1].top)
+        assertEquals(region.top + region.height, halves[1].top + halves[1].height)
+        assertEquals(4, ScanLayout.dualAxisHalves(region).size)
+    }
 }

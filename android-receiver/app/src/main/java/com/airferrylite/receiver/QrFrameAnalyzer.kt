@@ -270,8 +270,16 @@ class QrFrameAnalyzer(
                     if (seen.add(key)) merged += hit
                 }
             }
-            // Exclusive center 2×2 splits codes on the midline (natural aim → 0 hits).
-            add(readCropsParallel(luma, ScanLayout.coverageQuadrants(luma.width, luma.height), retryBinarizer = false, maxSymbols = 2))
+            // Full-width/full-height axis halves preserve dense centered QRs; 2×2
+            // quadrants can cut directly through them in the raw sensor buffer.
+            add(
+                readCropsParallel(
+                    luma,
+                    ScanLayout.dualAxisHalves(ScanLayout.centerSquare(luma.width, luma.height)),
+                    retryBinarizer = false,
+                    maxSymbols = 2
+                )
+            )
             return if (merged.isEmpty()) primary else merged
         }
         val merged = mutableListOf<NativeHit>()
@@ -345,14 +353,21 @@ class QrFrameAnalyzer(
                         luma.height
                     )
                 }
+                val cachedAxis = dualAxisLabel(stableDualTiles.get())
                 val retry = when {
+                    cachedAxis == "vertical" -> ScanLayout.dualVerticalHalves(
+                        ScanLayout.centerSquare(luma.width, luma.height)
+                    )
+                    cachedAxis == "horizontal" -> ScanLayout.dualHalves(
+                        ScanLayout.centerSquare(luma.width, luma.height)
+                    )
                     fromHit != null && fromHit.isNotEmpty() -> fromHit
                     stableDualTiles.get()?.size == 2 -> stableDualTiles.get().orEmpty()
                     previousTiles.size >= 2 ->
                         ScanLayout.dualHalves(
                             ScanLayout.union(previousTiles[0], previousTiles[1], luma.width, luma.height)
                         )
-                    else -> ScanLayout.coverageQuadrants(luma.width, luma.height)
+                    else -> ScanLayout.dualAxisHalves(ScanLayout.centerSquare(luma.width, luma.height))
                 }
                 add(
                     readCropsParallel(
