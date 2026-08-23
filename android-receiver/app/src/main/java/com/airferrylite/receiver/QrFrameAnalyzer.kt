@@ -98,6 +98,7 @@ class QrFrameAnalyzer(
     private val dualLeftCropHits = AtomicLong(0)
     private val dualRightCropHits = AtomicLong(0)
     private val stableDualTiles = AtomicReference<List<ScanRegion>?>(null)
+    private val stableDualCacheMisses = AtomicInteger(0)
     private val bootstrapRetryTick = AtomicInteger(0)
     private val bootstrapRetryScans = AtomicLong(0)
 
@@ -231,6 +232,7 @@ class QrFrameAnalyzer(
         dualRightCropHits.set(0)
         bootstrapRetryTick.set(0)
         bootstrapRetryScans.set(0)
+        stableDualCacheMisses.set(0)
     }
 
     private fun chooseRegion(width: Int, height: Int): ScanRegion {
@@ -249,8 +251,13 @@ class QrFrameAnalyzer(
                     trackDualSlots = true
                 )
                 if (cachedHits.isNotEmpty()) {
+                    stableDualCacheMisses.set(0)
                     bootstrapRetryTick.set(0)
                     return cachedHits
+                }
+                if (stableDualCacheMisses.incrementAndGet() >= STABLE_CACHE_MISS_LIMIT) {
+                    stableDualTiles.set(null)
+                    stableDualCacheMisses.set(0)
                 }
             }
             val retryBootstrap = bootstrapRetryTick.incrementAndGet() >= BOOTSTRAP_RETRY_INTERVAL
@@ -271,12 +278,12 @@ class QrFrameAnalyzer(
                     if (seen.add(key)) merged += hit
                 }
             }
-            // Full-width/full-height axis halves preserve dense centered QRs; 2×2
-            // quadrants can cut directly through them in the raw sensor buffer.
+            // Four overlapping coverage tiles are both cheaper than repeated full-frame
+            // max4 and able to bootstrap row, column and diagonal pairs alike.
             add(
                 readCropsParallel(
                     luma,
-                    ScanLayout.dualAxisHalves(ScanLayout.centerSquare(luma.width, luma.height)),
+                    ScanLayout.coverageQuadrants(luma.width, luma.height),
                     retryBinarizer = false,
                     maxSymbols = 2
                 )
@@ -347,12 +354,16 @@ class QrFrameAnalyzer(
             if (recoverNow) {
                 dualRecoveryTick.set(0)
                 dualRecoveryScans.incrementAndGet()
+                val recoveryOrdinal = dualRecoveryScans.get()
                 val fromHit = merged.firstOrNull { it.points.size >= 2 }?.let { hit ->
-                    ScanLayout.siblingCandidatesFromHit(
+                    val candidates = ScanLayout.siblingCandidatesFromHit(
                         hit.points.map { (x, y) -> (hit.originLeft + x) to (hit.originTop + y) },
                         luma.width,
                         luma.height
                     )
+                    // Probe axial and diagonal directions on alternating recovery passes.
+                    val offset = ((recoveryOrdinal - 1L).coerceAtLeast(0L) % 2L).toInt() * TILE_WORKERS
+                    candidates.drop(offset).take(TILE_WORKERS)
                 }
                 val cachedAxis = dualAxisLabel(stableDualTiles.get())
                 val retry = when {
@@ -729,5 +740,6 @@ class QrFrameAnalyzer(
         private const val TILE_UNDERCOUNT_LIMIT = 3
         private const val DUAL_RECOVERY_INTERVAL = 8
         private const val BOOTSTRAP_RETRY_INTERVAL = 8
+        private const val STABLE_CACHE_MISS_LIMIT = 3
     }
 }

@@ -158,12 +158,19 @@ internal object ScanLayout {
         imageHeight: Int
     ): List<ScanRegion> {
         val tile = tileFromHit(points, imageWidth, imageHeight) ?: return emptyList()
-        val shift = (tile.width * 0.78f).toInt().coerceAtLeast(1)
+        // A tracked tile already includes quiet-zone padding. Moving only 0.78× made
+        // every recovery crop overlap and decode the known anchor again. 1.08× lands
+        // on the neighbouring cell used by the sender's 2×2 canvas.
+        val shift = (tile.width * 1.08f).toInt().coerceAtLeast(1)
         val candidates = listOf(
             ScanRegion(tile.left - shift, tile.top, tile.width, tile.height),
             ScanRegion(tile.left + shift, tile.top, tile.width, tile.height),
             ScanRegion(tile.left, tile.top - shift, tile.width, tile.height),
-            ScanRegion(tile.left, tile.top + shift, tile.width, tile.height)
+            ScanRegion(tile.left, tile.top + shift, tile.width, tile.height),
+            ScanRegion(tile.left - shift, tile.top - shift, tile.width, tile.height),
+            ScanRegion(tile.left + shift, tile.top - shift, tile.width, tile.height),
+            ScanRegion(tile.left - shift, tile.top + shift, tile.width, tile.height),
+            ScanRegion(tile.left + shift, tile.top + shift, tile.width, tile.height)
         ).map { clamp(it, imageWidth, imageHeight) }
         return candidates.distinct().filter { it != tile }
     }
