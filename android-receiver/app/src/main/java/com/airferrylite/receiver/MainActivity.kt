@@ -959,6 +959,7 @@ class MainActivity : AppCompatActivity() {
             "高速录像能力：$highSpeedCameraFpsLabel（CameraX 分析流不可直接使用）",
             "分析：提交 ${stats?.submittedFrames ?: 0} · 完成 ${stats?.analysisFps?.let { "%.1f".format(it) } ?: "0"} FPS · 丢帧 ${stats?.droppedFrames ?: 0}",
             "解码：zxing-cpp · 平均 ${stats?.averageDecodeMs?.let { "%.1f ms".format(it) } ?: "—"} · 单码命中 ${stats?.singleHits ?: 0} · 多码扫描 ${stats?.multiScans ?: 0}（命中 ${stats?.multiHits ?: 0}${perFrameLabel(stats)}）",
+            "双码：本帧 ${stats?.decodedThisFrame ?: 0} · 完整帧 ${stats?.dualCompleteFrames ?: 0} · 缺半帧 ${stats?.dualPartialFrames ?: 0} · 低频补扫 ${stats?.dualRecoveryScans ?: 0}",
             "分析器：线程 ${stats?.workerCount ?: "?"} · 忙 ${stats?.workerBusy ?: "?"} · 空结果 ${stats?.emptyDecodes ?: 0} · 异常 ${stats?.decodeErrors ?: 0} · 新缓冲 ${stats?.bufferAllocations ?: 0}",
             "看门狗：恢复 ${stats?.pipelineRecoveries ?: 0} 次 · 心跳 ${if (lastStatsAt == 0L) "—" else "${(now - lastStatsAt).coerceAtLeast(0)} ms"}",
             "曝光：点测 $aeMeterCount · 补偿 $lastEvIndex · 轻推 $aeNudgeCount",
@@ -1009,9 +1010,11 @@ class MainActivity : AppCompatActivity() {
     private fun layoutLabel(stats: ScanStats?): String {
         val tiles = stats?.tileCount ?: 0
         return when {
-            tiles >= 4 -> "四码"
+            stats?.quadLayout == true || tiles >= 4 -> "四码"
+            stats?.dualLayout == true -> "双码"
             stats?.multiLayout == true -> "多码"
-            else -> "单码"
+            stats == null -> "未知"
+            else -> "单码/待锁定"
         }
     }
 
