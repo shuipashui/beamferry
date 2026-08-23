@@ -47,7 +47,8 @@ data class ScanStats(
     val dualRightCropHits: Long = 0,
     val dualAxis: String = "unlocked",
     val dualCacheAvailable: Boolean = false,
-    val bootstrapRetryScans: Long = 0
+    val bootstrapRetryScans: Long = 0,
+    val dualGeometry: String = "unlocked"
 )
 
 /** Latest-frame zxing-cpp scan on the CameraX analyzer thread. */
@@ -690,7 +691,8 @@ class QrFrameAnalyzer(
                 dualRightCropHits = dualRightCropHits.get(),
                 dualAxis = dualAxisLabel(trackedTiles.get()),
                 dualCacheAvailable = stableDualTiles.get()?.size == 2,
-                bootstrapRetryScans = bootstrapRetryScans.get()
+                bootstrapRetryScans = bootstrapRetryScans.get(),
+                dualGeometry = dualGeometryLabel(trackedTiles.get())
             )
         )
     }
@@ -702,6 +704,21 @@ class QrFrameAnalyzer(
         val dx = kotlin.math.abs((first.left + first.width / 2) - (second.left + second.width / 2))
         val dy = kotlin.math.abs((first.top + first.height / 2) - (second.top + second.height / 2))
         return if (dx >= dy) "horizontal" else "vertical"
+    }
+
+    private fun dualGeometryLabel(tiles: List<ScanRegion>?): String {
+        if (tiles == null || tiles.size < 2) return "unlocked"
+        val first = tiles[0]
+        val second = tiles[1]
+        val dx = kotlin.math.abs((first.left + first.width / 2) - (second.left + second.width / 2))
+        val dy = kotlin.math.abs((first.top + first.height / 2) - (second.top + second.height / 2))
+        val width = (first.width + second.width) / 2
+        val height = (first.height + second.height) / 2
+        return when {
+            dx > width * 0.55f && dy > height * 0.55f -> "diagonal"
+            dx >= dy -> "row"
+            else -> "column"
+        }
     }
 
     companion object {
