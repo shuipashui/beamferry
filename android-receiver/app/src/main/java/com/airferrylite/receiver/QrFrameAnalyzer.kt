@@ -232,6 +232,7 @@ class QrFrameAnalyzer(
         dualRightCropHits.set(0)
         bootstrapRetryTick.set(0)
         bootstrapRetryScans.set(0)
+        stableDualTiles.set(null)
         stableDualCacheMisses.set(0)
     }
 
@@ -619,16 +620,12 @@ class QrFrameAnalyzer(
             }
             dualStream.get() -> {
                 tileUndercount.set(0)
-                val next = when {
-                    hits.size >= 2 -> ScanLayout.tilesFromHits(perCode, imageWidth, imageHeight)
-                    stableDualTiles.get()?.size == 2 -> ScanLayout.followPairFromHit(
-                        stableDualTiles.get().orEmpty(),
-                        perCode.first(),
-                        imageWidth,
-                        imageHeight
-                    )
-                    else -> listOfNotNull(ScanLayout.tileFromHit(perCode.first(), imageWidth, imageHeight))
-                }
+                val next = ScanLayout.updateDualTiles(
+                    stableDualTiles.get().orEmpty(),
+                    perCode,
+                    imageWidth,
+                    imageHeight
+                )
                 trackedTiles.set(next)
                 if (next.size == 2) stableDualTiles.set(next)
             }

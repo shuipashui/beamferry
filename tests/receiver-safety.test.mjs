@@ -11,6 +11,8 @@ const mirrorServiceWorker = await fs.readFile(new URL("../web-receiver/sw.js", i
 const storage = await fs.readFile(new URL("../receiver-storage.js", import.meta.url), "utf8");
 const worker = await fs.readFile(new URL("../decoder-worker.js", import.meta.url), "utf8");
 const multiWorker = await fs.readFile(new URL("../vendor/decimen/multi-decoder-worker.js", import.meta.url), "utf8");
+const androidAnalyzer = await fs.readFile(new URL("../android-receiver/app/src/main/java/com/airferrylite/receiver/QrFrameAnalyzer.kt", import.meta.url), "utf8");
+const androidMain = await fs.readFile(new URL("../android-receiver/app/src/main/java/com/airferrylite/receiver/MainActivity.kt", import.meta.url), "utf8");
 new vm.Script(source);
 new vm.Script(storage);
 new vm.Script(worker);
@@ -19,6 +21,9 @@ assert.ok(multiWorker.includes("tryHarder:false") && multiWorker.includes("tryRo
 assert.ok(multiWorker.includes("tryInvert:false"), "WASM decoder must not invert screen QR codes");
 assert.ok(multiWorker.includes("GlobalHistogram") && multiWorker.includes("retryBinarizer"), "WASM decoder must retry GlobalHistogram only when asked");
 assert.ok(!multiWorker.includes('["LocalAverage",true]'), "WASM decoder must not run invert retries");
+assert.ok(androidAnalyzer.includes("stableDualTiles.set(null)"), "a new Android receive session must not reuse stale dual crops");
+assert.ok(androidAnalyzer.includes("ScanLayout.updateDualTiles("), "Android dual tracking must preserve a proven pair after one rolling-shutter hit");
+assert.ok(androidMain.includes("maybeRephaseDualCamera(stats)"), "Android 60 FPS dual mode must escape sustained bad camera/display phase");
 for (const needle of [
   "const MAX_FILE_SIZE = 64 * 1024 * 1024;",
   "const MAX_CHUNKS = 200000;",

@@ -205,6 +205,23 @@ internal object ScanLayout {
         }
     }
 
+    /**
+     * Rebuild a dual pair only from two symbols observed in the same camera frame.
+     * A lone symbol may be clipped by a display refresh boundary, so using its
+     * distorted bounds to move both slots makes a proven pair drift into half-speed.
+     */
+    fun updateDualTiles(
+        stablePair: List<ScanRegion>,
+        hits: List<List<Pair<Float, Float>>>,
+        imageWidth: Int,
+        imageHeight: Int
+    ): List<ScanRegion> = when {
+        hits.size >= 2 -> tilesFromHits(hits, imageWidth, imageHeight)
+        stablePair.size == 2 -> stablePair.map { clampRect(it, imageWidth, imageHeight) }
+        hits.isNotEmpty() -> listOfNotNull(tileFromHit(hits.first(), imageWidth, imageHeight))
+        else -> emptyList()
+    }
+
     fun exclusiveQuadrants(region: ScanRegion): List<ScanRegion> {
         val halfW = (region.width / 2).coerceAtLeast(1)
         val halfH = (region.height / 2).coerceAtLeast(1)
