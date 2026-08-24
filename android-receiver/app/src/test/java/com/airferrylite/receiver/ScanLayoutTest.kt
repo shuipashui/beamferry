@@ -291,6 +291,34 @@ class ScanLayoutTest {
     }
 
     @Test
+    fun oneRollingShutterHitDoesNotMoveAProvenDualPair() {
+        val pair = listOf(
+            ScanRegion(300, 200, 300, 300),
+            ScanRegion(620, 200, 300, 300)
+        )
+        val clippedHit = listOf(
+            listOf(390f to 230f, 545f to 250f, 520f to 470f, 380f to 440f)
+        )
+        assertEquals(pair, ScanLayout.updateDualTiles(pair, clippedHit, 1440, 1440))
+    }
+
+    @Test
+    fun twoFreshHitsMayRelockAProvenDualPair() {
+        val old = listOf(
+            ScanRegion(200, 200, 260, 260),
+            ScanRegion(500, 200, 260, 260)
+        )
+        val fresh = listOf(
+            listOf(520f to 300f, 700f to 300f, 700f to 480f, 520f to 480f),
+            listOf(760f to 300f, 940f to 300f, 940f to 480f, 760f to 480f)
+        )
+        val updated = ScanLayout.updateDualTiles(old, fresh, 1440, 1440)
+        assertEquals(2, updated.size)
+        assertTrue(updated[0].left > old[0].left)
+        assertTrue(updated[1].left > old[1].left)
+    }
+
+    @Test
     fun verticalHalvesKeepTheFullWidthAndOverlap() {
         val region = ScanRegion(240, 0, 1440, 1440)
         val halves = ScanLayout.dualVerticalHalves(region)
