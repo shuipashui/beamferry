@@ -253,6 +253,7 @@ Lite 已有格位线程和缓存思路，但固定 N 格位、miss 保框和全�
 
 - Android APK 必须通过 GitHub Actions 的 `Build Android receiver` workflow 构建，不使用本地 APK 作为交付产物。
 - 每次 Android 改动完成后，等待 Actions 构建成功，并向用户提供该次 run 的 APK artifact 下载链接。
+- APK 下载链接必须使用 GitHub 网页形式：`https://github.com/<owner>/<repo>/actions/runs/<run-id>/artifacts/<artifact-id>`；不要提供 `api.github.com` 的 artifact API 地址。
 
 修改后至少执行：
 
