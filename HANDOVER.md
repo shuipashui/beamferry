@@ -10,8 +10,8 @@
 
 | 项目 | 当前值 |
 |---|---|
-| Android APK | `0.8.115-dual-phase-recovery` |
-| versionCode | `129` |
+| Android APK | `0.8.116-quad-density-diagnostics` |
+| versionCode | `130` |
 | Web receiver build/cache | `v86` / `airferry-lite-v86` |
 | Android 解码器 | `zxing-cpp 2.3.0` |
 | 默认工作分支 | `main` |
@@ -59,6 +59,8 @@
 - 当前 `60 FPS` 实现按对角线交替更新两码，因此每秒新符号量约等于
   `2 × 60 = 120 symbols/s`，不是四格每帧全部更新的 `240 symbols/s`。
 - 当前推荐仍是 `1465 B / 30 FPS`；50/60 FPS 在这台设备上没有带来对应吞吐提升。
+- 发送端四码现已开放 `1732 B (V30)`、`1952 B (V32)`、`2068 B (V33)` 实验档，上限为 `2068 B`。选择四码会按现有最高档逻辑预填 `2068 B`，但稳定对照仍是 `1465 B / 30 FPS`。
+- 发送端速率诊断显示 QR Version、码体模块数、静区、每模块设备像素和最终画布设备像素；APK 从实际 AFL2 帧显示帧字节、QR Version 和模块矩阵。
 
 ### 编码和页面部署
 
@@ -240,6 +242,9 @@ Lite 已有格位线程和缓存思路，但固定 N 格位、miss 保框和全�
 - 不要删除详细诊断；不同启动相位的差异必须依靠完整日志比较。
 
 ## 8. 构建、验证与发布
+
+- Android APK 必须通过 GitHub Actions 的 `Build Android receiver` workflow 构建，不使用本地 APK 作为交付产物。
+- 每次 Android 改动完成后，等待 Actions 构建成功，并向用户提供该次 run 的 APK artifact 下载链接。
 
 修改后至少执行：
 
