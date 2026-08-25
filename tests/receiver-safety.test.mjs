@@ -4,7 +4,7 @@ import vm from "node:vm";
 
 const source = await fs.readFile(new URL("../app.js", import.meta.url), "utf8");
 const indexHtml = await fs.readFile(new URL("../index.html", import.meta.url), "utf8");
-assert.ok(indexHtml.includes('id="openSender"') && indexHtml.includes("sender/dist/airferry-lite-sender.html"), "receiver must link to the sender");
+assert.ok(indexHtml.includes('id="openSender"') && indexHtml.includes("sender/dist/beamferry-sender.html"), "receiver must link to the sender");
 const serviceWorker = await fs.readFile(new URL("../sw.js", import.meta.url), "utf8");
 const mirrorSource = await fs.readFile(new URL("../web-receiver/app.js", import.meta.url), "utf8");
 const mirrorServiceWorker = await fs.readFile(new URL("../web-receiver/sw.js", import.meta.url), "utf8");

@@ -10,7 +10,7 @@
 
 ## 使用
 
-- 发送端：https://shuipashui.github.io/beamferry/sender/dist/airferry-lite-sender.html
+- 发送端：https://shuipashui.github.io/beamferry/sender/dist/beamferry-sender.html
 - 网页接收端也可从发送页右侧的地址 / 二维码进入；开始播放文件码流后该入口会隐藏
 
 1. 在电脑打开发送端，选择文件。
@@ -59,7 +59,7 @@
 
 ```text
 index.html / app.js / sw.js                 网页接收端（GitHub Pages 根目录）
-sender/dist/airferry-lite-sender.html       单文件发送端
+sender/dist/beamferry-sender.html           单文件发送端
 sender/                                     发送端源码
 android-receiver/                           Android 应用
 shared/                                     AFL1 / AFL2 协议
