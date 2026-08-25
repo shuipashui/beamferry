@@ -259,6 +259,26 @@ Lite 已有格位线程和缓存思路，但固定 N 格位、miss 保框和全�
 - 每次 Android 改动完成后，等待 Actions 构建成功，并向用户提供该次 run 的 APK artifact 下载链接。
 - APK 下载链接必须使用 GitHub 网页形式：`https://github.com/<owner>/<repo>/actions/runs/<run-id>/artifacts/<artifact-id>`；不要提供 `api.github.com` 的 artifact API 地址。
 
+### GitHub 网络与 Git 代理
+
+本机使用 v2rayN/Xray，当前 mixed 代理监听 `127.0.0.1:10808`。GitHub 443 直连可能超时；在该 VPN
+运行时为 Git 持久配置 GitHub 代理：
+
+```powershell
+git config --global http.proxy http://127.0.0.1:10808
+git config --global https.proxy http://127.0.0.1:10808
+git ls-remote https://github.com/shuipashui/beamferry.git HEAD
+```
+
+验证命令成功输出远端 HEAD SHA 后，再执行 `git push` 或查询 Actions。代理配置写入用户级
+`C:\Users\<用户名>\.gitconfig`，只影响 Git，不改变系统代理。若 v2rayN 更换端口，应同步更新两项配置；
+若需要取消 Git 代理，执行：
+
+```powershell
+git config --global --unset http.proxy
+git config --global --unset https.proxy
+```
+
 修改后至少执行：
 
 ```powershell
