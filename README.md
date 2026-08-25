@@ -1,4 +1,4 @@
-# AirFerry Lite
+# BeamFerry
 
 电脑浏览器把文件编成连续二维码，手机摄像头扫回来，不经过服务器。
 
@@ -86,9 +86,11 @@ cd android-receiver
 .\build-local.ps1 assembleDebug
 ```
 
-APK 输出为 `android-receiver/app/build/outputs/apk/debug/app-debug.apk`（仅本地自测）。**交付请只用 GitHub Actions** 工作流 `Build Android receiver` 的 artifact `airferry-lite-android-debug`；不要保留或分发仓库里的旧 APK。
+APK 输出为 `android-receiver/app/build/outputs/apk/debug/app-debug.apk`（仅本地自测）。**交付请只用 GitHub Actions** 工作流 `Build Android receiver` 的 artifact `beamferry-android-debug`；不要保留或分发仓库里的旧 APK。
 
 ## 和 AirFerry / Decimen 的关系
+
+本项目品牌为 BeamFerry，与上游 AirFerry 项目区分；协议兼容 AFL2/旧 AFL1。
 
 当前发送 AFL2，参考 [decimen-optical-transfer](https://github.com/bashalarmistalt/decimen-optical-transfer) v0.3.0（MIT）：二进制 LT 喷泉码、固定掩码、发送端 lookahead。网页用 ZXing WASM 解码，Android 用 zxing-cpp。Decimen 后续 AGPL 版本的四码 / RaptorQ 没有纳入本项目。旧 AFL1 接收代码仍保留，用于读取旧发送端。
 
