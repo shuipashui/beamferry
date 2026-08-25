@@ -27,7 +27,7 @@ assert.ok(senderStyles.includes("overflow:visible") && senderStyles.includes("wi
 assert.ok(senderStyles.includes("#qrCanvas{") && senderStyles.includes("border-radius:0"), "file QR corners must not clip finder patterns");
 const senderApp = fs.readFileSync(new URL("../sender/app.js", import.meta.url), "utf8");
 assert.ok(senderApp.includes("QUIET_MODULES = 2"), "single-code QR quiet zone should stay tight so modules can use the canvas");
-assert.ok(senderApp.includes("QUAD_QUIET_MODULES = 4"), "quad codes need a spec quiet zone so adjacent finders do not merge");
+assert.ok(senderApp.includes("QUAD_QUIET_MODULES = 2"), "quad optical experiment should use a tighter quiet zone");
 assert.ok(senderApp.includes("codes === 4 || codes === 2) return { columns: 2, rows: 2, quiet: QUAD_QUIET_MODULES }"), "dual must use the same square 2x2 canvas as quad so both codes stay in frame");
 assert.ok(!senderStyles.includes("html.quad-send,body.quad-send{height:auto"), "quad sender must keep the same fixed window as single-code");
 assert.ok(!senderApp.includes("size * 0.04"), "quad tiles should fill the original 2x2 canvas instead of shrinking for an extra gutter");

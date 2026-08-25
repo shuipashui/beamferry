@@ -79,7 +79,9 @@
   };
   const HIGH_QUEUE_LIMIT = 8;
   const QUIET_MODULES = 2;
-  const QUAD_QUIET_MODULES = 4;
+  // Optical experiment: tighter inter-code quiet zones make each QR larger
+  // on the same 2x2 canvas while retaining a white border around the canvas.
+  const QUAD_QUIET_MODULES = 2;
   const LINK_QUIET_MODULES = 4;
   const COMMON_HZ = [60, 75, 90, 120, 144, 165, 240];
   const QUAD_PAIRS = [[0, 3], [1, 2]];
@@ -975,6 +977,7 @@
     const quad = patterns.length === 4;
     document.documentElement.classList.toggle("quad-send", quad);
     document.body.classList.toggle("quad-send", quad);
+    document.body.classList.toggle("quad-optical", quad);
     viewer.classList.toggle("quad", quad);
     const metrics = layoutMetrics(patterns);
     canvas.style.maxWidth = "none";

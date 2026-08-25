@@ -65,6 +65,16 @@
                 android:text="120"
                 android:textSize="11sp" />
         </com.google.android.material.button.MaterialButtonToggleGroup>
+        <com.google.android.material.button.MaterialButtonToggleGroup
+            android:id="@+id/resolutionGroup"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            app:selectionRequired="true"
+            app:singleSelection="true">
+            <Button android:id="@+id/resolution1080" style="?attr/materialButtonOutlinedStyle" android:layout_width="wrap_content" android:layout_height="32dp" android:minWidth="48dp" android:insetTop="0dp" android:insetBottom="0dp" android:text="1080" android:textSize="10sp" />
+            <Button android:id="@+id/resolution1440" style="?attr/materialButtonOutlinedStyle" android:layout_width="wrap_content" android:layout_height="32dp" android:minWidth="48dp" android:insetTop="0dp" android:insetBottom="0dp" android:text="1440" android:textSize="10sp" />
+        </com.google.android.material.button.MaterialButtonToggleGroup>
     </LinearLayout>
 
     <TextView
