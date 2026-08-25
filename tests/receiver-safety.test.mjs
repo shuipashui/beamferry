@@ -13,6 +13,9 @@ const worker = await fs.readFile(new URL("../decoder-worker.js", import.meta.url
 const multiWorker = await fs.readFile(new URL("../vendor/decimen/multi-decoder-worker.js", import.meta.url), "utf8");
 const androidAnalyzer = await fs.readFile(new URL("../android-receiver/app/src/main/java/com/airferrylite/receiver/QrFrameAnalyzer.kt", import.meta.url), "utf8");
 const androidMain = await fs.readFile(new URL("../android-receiver/app/src/main/java/com/airferrylite/receiver/MainActivity.kt", import.meta.url), "utf8");
+assert.ok(androidMain.includes("码密度：") && androidMain.includes("QR V${(modules - 17) / 4}"), "Android diagnostics must report received QR density");
+assert.ok(androidMain.includes("if (stats?.dualLayout == true)"), "dual-only diagnostics must stay hidden during quad tests");
+assert.ok(!androidMain.includes("高速录像能力："), "unusable high-speed recording capability is diagnostic noise");
 new vm.Script(source);
 new vm.Script(storage);
 new vm.Script(worker);
