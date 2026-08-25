@@ -38,7 +38,7 @@ class HighSpeedAssembler {
         fun looksLikeFrame(bytes: ByteArray): Boolean {
             if (bytes.size <= FRAME_HEADER_SIZE || u8(bytes[0]) != 0xd1) return false
             val magic = u8(bytes[1])
-            return magic in 0x0c..0x0f || magic == 0x1c || magic == 0x1d
+            return magic in 0x0c..0x0f || magic in 0x1c..0x1f
         }
 
         fun isMultiLayoutFrame(bytes: ByteArray) = looksLikeFrame(bytes) && layoutCodesOf(bytes) >= 2
@@ -47,10 +47,13 @@ class HighSpeedAssembler {
 
         fun isQuadLayoutFrame(bytes: ByteArray) = looksLikeFrame(bytes) && layoutCodesOf(bytes) == 4
 
+        fun isQuadFullRefresh60Frame(bytes: ByteArray) =
+            looksLikeFrame(bytes) && (u8(bytes[1]) == 0x1e || u8(bytes[1]) == 0x1f)
+
         private fun layoutCodesOf(bytes: ByteArray) = layoutCodesFromMagic(u8(bytes[1]))
 
         private fun layoutCodesFromMagic(magic: Int) = when (magic) {
-            0x0d, 0x0f -> 4
+            0x0d, 0x0f, 0x1e, 0x1f -> 4
             0x1c, 0x1d -> 2
             else -> 1
         }
@@ -159,7 +162,8 @@ class HighSpeedAssembler {
         val totalLength: Int,
         val payloadFnv: Long,
         val layoutCodes: Int,
-        val systematic: Boolean
+        val systematic: Boolean,
+        val quadFullRefresh60: Boolean
     )
 
     private var streamKey: String? = null
@@ -176,7 +180,7 @@ class HighSpeedAssembler {
 
     fun accept(bytes: ByteArray): HighSpeedUpdate {
         val frame = parseFrame(bytes) ?: return snapshot(error = "高速二维码帧格式错误")
-        val key = "${frame.sessionId}:${frame.blocks}:${frame.blockLength}:${frame.totalLength}:${frame.payloadFnv}:${frame.layoutCodes}:${if (frame.systematic) 1 else 0}"
+        val key = "${frame.sessionId}:${frame.blocks}:${frame.blockLength}:${frame.totalLength}:${frame.payloadFnv}:${frame.layoutCodes}:${if (frame.systematic) 1 else 0}:${if (frame.quadFullRefresh60) 1 else 0}"
         if (streamKey != key) {
             streamKey = key
             header = frame
@@ -210,8 +214,9 @@ class HighSpeedAssembler {
         if (bytes.size != FRAME_HEADER_SIZE + blockLength) return null
         val magic = u8(bytes[1])
         val layoutCodes = layoutCodesFromMagic(magic)
-        val systematic = magic == 0x0e || magic == 0x0f || magic == 0x1d
-        return FrameHeader(sessionId, sequence, blocks, blockLength, totalLength.toInt(), payloadFnv, layoutCodes, systematic)
+        val systematic = magic == 0x0e || magic == 0x0f || magic == 0x1d || magic == 0x1f
+        val quadFullRefresh60 = magic == 0x1e || magic == 0x1f
+        return FrameHeader(sessionId, sequence, blocks, blockLength, totalLength.toInt(), payloadFnv, layoutCodes, systematic, quadFullRefresh60)
     }
 
     private fun snapshot(error: String? = null): HighSpeedUpdate {

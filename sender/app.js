@@ -42,7 +42,7 @@
       ["24", "24 FPS"],
       ["30", "30 FPS"],
       ["50", "50 FPS（60 Hz 5/6 节拍实验）"],
-      ["60", "60 FPS（高刷）"],
+      ["60", "60 FPS（实验·四格全刷）"],
       ["90", "90 FPS（高刷）"],
       ["120", "120 FPS（高刷）"]
     ],
@@ -317,7 +317,8 @@
           totalLen: packed.container.length,
           payloadFnv: H.fnv1a(packed.container),
           layoutCodes: codesPerScreen === 1 ? 1 : codesPerScreen === 2 ? 2 : 4,
-          systematic: true
+          systematic: true,
+          quadFullRefresh60: codesPerScreen === 4 && Number(fps.value) === 60
         },
         session: sessionId.toString(16).padStart(4, "0"),
         total: encoder.k,
@@ -548,7 +549,7 @@
   }
 
   function quadRefreshesAll() {
-    return codesPerScreen === 4 && Number(fps.value) < 60;
+    return codesPerScreen === 4 && Number(fps.value) <= 60;
   }
 
   function updateIntervalVsyncs() {
@@ -1117,11 +1118,13 @@
     if (rate.scale) text += " · QR V" + rate.version + " / " + rate.qrModules + " 模块 · 静区 " + rate.quiet + " · 每模块 " + rate.scale + " 设备像素 · 画布 " + rate.canvasDeviceWidth + "×" + rate.canvasDeviceHeight + " 设备像素";
     if (rate.codes === 4) text += rate.fps === 50
       ? "。50 FPS 实验档：60 Hz 下按 6 个 vsync 更新 5 次，四码整屏同换"
-      : "。30 FPS 四码整屏同换；60 FPS 仍交错换对角，避免四格同刷拖影";
+      : rate.fps === 60
+        ? "。60 FPS 实验档：每个刷新周期四格全部更新；30 FPS 原稳定路径保持不变"
+        : "。30 FPS 四码整屏同换；90/120 FPS 仍交错换对角";
     if (rate.codes === 2) text += "。双码只占 2×2 上排。50 FPS 使用 60 Hz 的 5/6 vsync 节拍；打开预填 2068 B · 50 FPS";
     if (rate.codes === 4 && rate.cell && rate.cell < 3) text += "。模块偏小，请全屏后再播";
     if (rate.codes === 2 && rate.cell && rate.cell < 3) text += "。模块偏小，请全屏后再播";
-    if (rate.codes === 4 && rate.fps >= 60 && (measuredRefreshHz || 60) < 90) text += "。60 Hz 屏上四码 60 FPS 容易拖影，改用 30 FPS 通常更快";
+    if (rate.codes === 4 && rate.fps === 60 && (measuredRefreshHz || 60) < 90) text += "。60 Hz 屏会尝试每次 vsync 全刷四码；若唯一符号率下降，请改回 30 FPS";
     if (rate.codes === 1 && rate.fps > 30) text += "。单码超过 30 FPS 时相机会拍到换码拖影，通常更慢";
     if (rate.fps > 60) text += "。分析流约 60 FPS，更高发送帧率不会增加唯一码";
     rateHint.textContent = text;

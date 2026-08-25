@@ -27,6 +27,11 @@ assert.ok(!multiWorker.includes('["LocalAverage",true]'), "WASM decoder must not
 assert.ok(androidAnalyzer.includes("stableDualTiles.set(null)"), "a new Android receive session must not reuse stale dual crops");
 assert.ok(androidAnalyzer.includes("ScanLayout.updateDualTiles("), "Android dual tracking must preserve a proven pair after one rolling-shutter hit");
 assert.ok(androidMain.includes("maybeRephaseDualCamera(stats)"), "Android 60 FPS dual mode must escape sustained bad camera/display phase");
+assert.ok(androidMain.includes("maybeRephaseQuadCamera(stats)"), "experimental quad 60 FPS must escape sustained bad camera/display phase");
+assert.ok(androidMain.includes("stats.quadFullRefresh60"), "ordinary quad streams must not trigger quad 60 FPS rephasing");
+assert.ok(androidAnalyzer.includes("stableQuadTiles"), "experimental quad 60 FPS must preserve a stable four-tile cache");
+assert.ok(androidAnalyzer.includes("QUAD_RECOVERY_INTERVAL = 8"), "experimental quad recovery scans must be rate limited");
+assert.ok(androidAnalyzer.includes("!quadFullRefresh60.get() ||"), "ordinary quad decoding must retain its original immediate recovery path");
 for (const needle of [
   "const MAX_FILE_SIZE = 64 * 1024 * 1024;",
   "const MAX_CHUNKS = 200000;",
@@ -63,7 +68,7 @@ for (const needle of [
   ,"const HIGH_QUAD_PACKED_SIZE = 720;"
   ,">= 4 ? 4 : 2"
   ,"!/Android/i.test(navigator.userAgent || \"\")"
-  ,"const RECEIVER_BUILD = \"v86\";"
+  ,"const RECEIVER_BUILD = \"v87\";"
   ,"function grabLumaRegion"
   ,"function cropLuma"
   ,"function downscaleLuma"
@@ -185,7 +190,7 @@ assert.ok(source.includes("function pauseHighSpeedJobs"), "Stop must keep compil
 assert.ok(source.includes("pauseHighSpeedJobs();"), "closeCamera must pause jobs without terminating WASM");
 assert.ok(source.includes("startHighSpeedWorker(0);"), "the first WASM worker must boot alone so compile is not doubled");
 assert.ok(source.includes("const HIGH_WORKER_BOOT_MS = 25000;"), "a stuck decoder must be restarted instead of spinning on 正在加载解码器");
-assert.ok(serviceWorker.includes('const CACHE_NAME = "airferry-lite-v86";'), "service worker cache version was not bumped");
+assert.ok(serviceWorker.includes('const CACHE_NAME = "airferry-lite-v87";'), "service worker cache version was not bumped");
 assert.ok(serviceWorker.includes('const WASM_CACHE = "airferry-lite-wasm";'), "hashed WASM must live in a cache that survives receiver version bumps");
 assert.ok(serviceWorker.includes("key === CACHE_NAME || key === WASM_CACHE"), "activating a new receiver build must not delete the WASM cache");
 assert.ok(source.includes("tiles.length === 1 && !highMultiLayout"), "single-code acquire must use BarcodeDetector to lock an ROI before V34 WASM searches 1440");
@@ -248,7 +253,7 @@ assert.ok(!source.includes("location.reload()"), "the receiver must not reload i
 assert.ok(serviceWorker.includes("self.clients.claim()"), "the new service worker must still take over open pages");
 assert.ok(!serviceWorker.includes("client.navigate(client.url)"), "activating the worker must not navigate the page and kill getUserMedia");
 assert.ok(serviceWorker.includes("ASSETS.filter((path) => !path.endsWith(\".wasm\"))") || serviceWorker.includes("ASSETS.filter(path => !path.endsWith(\".wasm\"))"), "install must not wait to download WASM before the page can open the camera");
-assert.ok(serviceWorker.includes('const CACHE_NAME = "airferry-lite-v86";'), "service worker cache version was not bumped");
+assert.ok(serviceWorker.includes('const CACHE_NAME = "airferry-lite-v87";'), "service worker cache version was not bumped");
 assert.ok(serviceWorker.includes('path.endsWith(".wasm")'), "service worker must cache WASM/worker files instead of no-store");
 assert.ok(serviceWorker.includes('"./highspeed-protocol.js"') && serviceWorker.includes('"./vendor/decimen/highspeed-decoder-worker.js"') && serviceWorker.includes('"./vendor/decimen/multi-decoder-worker.js"') && serviceWorker.includes('"./vendor/decimen/zxing_reader-EOacYbLr.wasm"'), "high-speed receiver assets are not cached");
 assert.equal(mirrorSource, source, "web-receiver app.js drifted from the published root receiver");

@@ -27,6 +27,9 @@ internal object QrPayload {
     fun isQuadLayout(bytes: ByteArray?) =
         bytes != null && HighSpeedAssembler.isQuadLayoutFrame(bytes)
 
+    fun isQuadFullRefresh60(bytes: ByteArray?) =
+        bytes != null && HighSpeedAssembler.isQuadFullRefresh60Frame(bytes)
+
     fun frameKey(bytes: ByteArray?): String? {
         if (bytes == null || bytes.size < 8) return null
         if ((bytes[0].toInt() and 0xff) != 0xd1) return null

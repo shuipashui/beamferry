@@ -1,5 +1,5 @@
 (() => {
-  const RECEIVER_BUILD = "v86";
+  const RECEIVER_BUILD = "v87";
   if ("serviceWorker" in navigator) {
     Promise.resolve(navigator.serviceWorker.register("sw.js?v=" + RECEIVER_BUILD)).then(reg => {
       reg?.update?.()?.catch?.(() => {});

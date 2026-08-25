@@ -35,6 +35,14 @@ class HighSpeedAssemblerTest {
         frame[1] = 0x1d
         assertTrue(HighSpeedAssembler.looksLikeFrame(frame))
         assertTrue(HighSpeedAssembler.isDualLayoutFrame(frame))
+        frame[1] = 0x1e
+        assertTrue(HighSpeedAssembler.looksLikeFrame(frame))
+        assertTrue(HighSpeedAssembler.isQuadLayoutFrame(frame))
+        assertTrue(HighSpeedAssembler.isQuadFullRefresh60Frame(frame))
+        frame[1] = 0x1f
+        assertTrue(HighSpeedAssembler.looksLikeFrame(frame))
+        assertTrue(HighSpeedAssembler.isQuadLayoutFrame(frame))
+        assertTrue(HighSpeedAssembler.isQuadFullRefresh60Frame(frame))
     }
 
     @Test

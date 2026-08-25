@@ -30,7 +30,7 @@
       <div class="actions"><button id="prepareBtn" class="primary" disabled>生成二维码流</button><button id="playBtn" disabled>开始播放</button><button id="fullscreenBtn" disabled>全屏</button><button id="resetBtn" disabled>重置</button><a id="openReceiver" class="jump" target="_blank" rel="noopener">打开接收端</a></div>
       <div class="status"><div><span>状态</span><strong id="statusText">等待文件</strong></div><div><span>传输</span><strong id="compressText">—</strong></div><div><span>会话</span><strong id="sessionText">—</strong></div><div><span>片段</span><strong id="frameText">—</strong></div></div>
       <div class="progress"><i id="progressBar"></i></div>
-      <p class="tip">打开单码、四码或双码时预填最高档。四码 1732 / 1952 / 2068 B 是高密度实验档，稳定基线仍是 1465 B · 30 FPS；诊断会显示 QR Version、模块数、模块像素和画布尺寸。窗口里也能播，全屏模块更大。四码 30 FPS 整屏同换，60 FPS 交错换对角。双码只占 2×2 上排；50 FPS 使用 5/6 vsync 节拍。空格键暂停，全屏后右上角同样有效。</p>
+      <p class="tip">打开单码、四码或双码时预填最高档。四码 1732 / 1952 / 2068 B 是高密度实验档，稳定基线仍是 1465 B · 30 FPS；诊断会显示 QR Version、模块数、模块像素和画布尺寸。窗口里也能播，全屏模块更大。四码 30 FPS 保持原整屏同换路径；60 FPS 是每个刷新周期四格全部更新的实验档，Android 需 0.8.119 或更高版本。双码只占 2×2 上排；50 FPS 使用 5/6 vsync 节拍。空格键暂停，全屏后右上角同样有效。</p>
     </section>
     <section class="panel viewer">
       <canvas id="qrCanvas" width="1080" height="1080"></canvas>

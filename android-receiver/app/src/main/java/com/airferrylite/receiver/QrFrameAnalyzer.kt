@@ -12,6 +12,7 @@ import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicLongArray
 import java.util.concurrent.atomic.AtomicReference
 
 data class DecodedQr(val bytes: ByteArray?, val text: String?)
@@ -48,7 +49,12 @@ data class ScanStats(
     val dualAxis: String = "unlocked",
     val dualCacheAvailable: Boolean = false,
     val bootstrapRetryScans: Long = 0,
-    val dualGeometry: String = "unlocked"
+    val dualGeometry: String = "unlocked",
+    val quadFullRefresh60: Boolean = false,
+    val quadFrameCounts: List<Long> = List(5) { 0L },
+    val quadSlotHits: List<Long> = List(4) { 0L },
+    val quadRecoveryScans: Long = 0,
+    val quadStableCacheAvailable: Boolean = false
 )
 
 /** Latest-frame zxing-cpp scan on the CameraX analyzer thread. */
@@ -71,6 +77,7 @@ class QrFrameAnalyzer(
     @Volatile private var lumaScratch: ByteBuffer? = null
     private val multiLayout = AtomicBoolean(false)
     private val quadStream = AtomicBoolean(false)
+    private val quadFullRefresh60 = AtomicBoolean(false)
     private val dualStream = AtomicBoolean(false)
     private val singleLayoutConfirmed = AtomicBoolean(false)
     private val trackedRoi = AtomicReference<ScanRegion?>(null)
@@ -99,6 +106,11 @@ class QrFrameAnalyzer(
     private val dualRightCropHits = AtomicLong(0)
     private val stableDualTiles = AtomicReference<List<ScanRegion>?>(null)
     private val stableDualCacheMisses = AtomicInteger(0)
+    private val stableQuadTiles = AtomicReference<List<ScanRegion>?>(null)
+    private val quadFrameCounts = AtomicLongArray(5)
+    private val quadSlotHits = AtomicLongArray(4)
+    private val quadRecoveryTick = AtomicInteger(0)
+    private val quadRecoveryScans = AtomicLong(0)
     private val bootstrapRetryTick = AtomicInteger(0)
     private val bootstrapRetryScans = AtomicLong(0)
 
@@ -193,6 +205,7 @@ class QrFrameAnalyzer(
             roiMisses.set(0)
             if (enabled) singleLayoutConfirmed.set(false) else {
                 quadStream.set(false)
+                quadFullRefresh60.set(false)
                 dualStream.set(false)
                 trackedRoi.set(null)
                 trackedTiles.set(null)
@@ -204,6 +217,7 @@ class QrFrameAnalyzer(
     fun resetSession() {
         setMultiLayout(false)
         quadStream.set(false)
+        quadFullRefresh60.set(false)
         dualStream.set(false)
         singleLayoutConfirmed.set(false)
         trackedRoi.set(null)
@@ -234,6 +248,11 @@ class QrFrameAnalyzer(
         bootstrapRetryScans.set(0)
         stableDualTiles.set(null)
         stableDualCacheMisses.set(0)
+        stableQuadTiles.set(null)
+        for (index in 0 until 5) quadFrameCounts.set(index, 0)
+        for (index in 0 until 4) quadSlotHits.set(index, 0)
+        quadRecoveryTick.set(0)
+        quadRecoveryScans.set(0)
     }
 
     private fun chooseRegion(width: Int, height: Int): ScanRegion {
@@ -299,7 +318,10 @@ class QrFrameAnalyzer(
                 if (seen.add(key)) merged += hit
             }
         }
-        val previousTiles = trackedTiles.get().orEmpty().map {
+        val activeTiles = trackedTiles.get().orEmpty().ifEmpty {
+            if (quadFullRefresh60.get()) stableQuadTiles.get().orEmpty() else emptyList()
+        }
+        val previousTiles = activeTiles.map {
             ScanLayout.clampRect(it, luma.width, luma.height)
         }
         val lockedQuad = quadStream.get() && previousTiles.size >= 4
@@ -332,7 +354,15 @@ class QrFrameAnalyzer(
         if (transferCount(merged) >= 4) return merged
         if (previousTiles.size >= 4 && transferCount(merged) >= 3) return merged
         if (lockedQuad) {
-            if (transferCount(merged) < 2) {
+            val count = transferCount(merged)
+            if (count >= 2) quadRecoveryTick.set(0)
+            val recoverNow = count < 2 && (
+                !quadFullRefresh60.get() ||
+                    quadRecoveryTick.incrementAndGet() >= QUAD_RECOVERY_INTERVAL
+                )
+            if (recoverNow) {
+                quadRecoveryTick.set(0)
+                if (quadFullRefresh60.get()) quadRecoveryScans.incrementAndGet()
                 val exclusive = ScanLayout.exclusiveQuadrants(region)
                 val overlays = ScanLayout.overlappingQuadrants(region)
                 val pending = overlays.indices.mapNotNull { index ->
@@ -522,6 +552,13 @@ class QrFrameAnalyzer(
     private fun publish(imageWidth: Int, imageHeight: Int, region: ScanRegion, hits: List<NativeHit>) {
         val transferHits = hits.filter { QrPayload.isTransfer(QrPayload.bytesFrom(it.bytes, it.text)) }
         decodedThisFrame.set(transferHits.size)
+        if (transferHits.any { QrPayload.isQuadFullRefresh60(QrPayload.bytesFrom(it.bytes, it.text)) }) {
+            quadFullRefresh60.set(true)
+        }
+        if (quadFullRefresh60.get()) {
+            quadFrameCounts.incrementAndGet(transferHits.size.coerceIn(0, 4))
+            recordQuadSlotHits(transferHits)
+        }
         if (dualStream.get()) {
             if (transferHits.size >= 2) dualCompleteFrames.incrementAndGet()
             else dualPartialFrames.incrementAndGet()
@@ -616,7 +653,9 @@ class QrFrameAnalyzer(
                 tileUndercount.set(0)
                 val grid = quadTileGrid(imageWidth, imageHeight)
                 val base = previous?.takeIf { it.size >= 4 } ?: grid
-                trackedTiles.set(ScanLayout.followContainedHits(base, perCode, imageWidth, imageHeight))
+                val next = ScanLayout.followContainedHits(base, perCode, imageWidth, imageHeight)
+                trackedTiles.set(next)
+                if (quadFullRefresh60.get() && next.size >= 4) stableQuadTiles.set(next)
             }
             dualStream.get() -> {
                 tileUndercount.set(0)
@@ -655,6 +694,18 @@ class QrFrameAnalyzer(
                 tileUndercount.set(0)
                 trackedTiles.set(ScanLayout.tilesFromHits(perCode, imageWidth, imageHeight))
             }
+        }
+    }
+
+    private fun recordQuadSlotHits(hits: List<NativeHit>) {
+        val slots = (trackedTiles.get()?.takeIf { it.size >= 4 } ?: stableQuadTiles.get()).orEmpty()
+        if (slots.size < 4) return
+        for (hit in hits) {
+            if (hit.points.isEmpty()) continue
+            val cx = (hit.originLeft + hit.points.map { it.first }.average()).toFloat()
+            val cy = (hit.originTop + hit.points.map { it.second }.average()).toFloat()
+            val owner = ScanLayout.ownerIndex(slots, cx, cy)
+            if (owner in 0..3) quadSlotHits.incrementAndGet(owner)
         }
     }
 
@@ -700,7 +751,12 @@ class QrFrameAnalyzer(
                 dualAxis = dualAxisLabel(trackedTiles.get()),
                 dualCacheAvailable = stableDualTiles.get()?.size == 2,
                 bootstrapRetryScans = bootstrapRetryScans.get(),
-                dualGeometry = dualGeometryLabel(trackedTiles.get())
+                dualGeometry = dualGeometryLabel(trackedTiles.get()),
+                quadFullRefresh60 = quadFullRefresh60.get(),
+                quadFrameCounts = List(5) { quadFrameCounts.get(it) },
+                quadSlotHits = List(4) { quadSlotHits.get(it) },
+                quadRecoveryScans = quadRecoveryScans.get(),
+                quadStableCacheAvailable = (stableQuadTiles.get()?.size ?: 0) >= 4
             )
         )
     }
@@ -736,6 +792,7 @@ class QrFrameAnalyzer(
         private const val STALE_TIMESTAMP_LIMIT = 12
         private const val TILE_UNDERCOUNT_LIMIT = 3
         private const val DUAL_RECOVERY_INTERVAL = 8
+        private const val QUAD_RECOVERY_INTERVAL = 8
         private const val BOOTSTRAP_RETRY_INTERVAL = 8
         private const val STABLE_CACHE_MISS_LIMIT = 3
     }

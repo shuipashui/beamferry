@@ -149,6 +149,7 @@ class MainActivity : AppCompatActivity() {
     private var scanSessionStartedAt = 0L
     private var cameraBoundAt = 0L
     private val dualPhaseRecovery = DualPhaseRecovery()
+    private val quadPhaseRecovery = QuadPhaseRecovery()
     private var restartDelayMs = PROCESS_RESTART_DELAY_MS
     private val restartProgressTick = object : Runnable {
         override fun run() {
@@ -257,6 +258,7 @@ class MainActivity : AppCompatActivity() {
                     recoverBurst = 0
                     maybeSoftDecoderRecover(stats)
                     maybeRephaseDualCamera(stats)
+                    maybeRephaseQuadCamera(stats)
                     renderDiagnostics()
                 }
             }
@@ -404,6 +406,7 @@ class MainActivity : AppCompatActivity() {
         softDecoderRecoverAttempted = false
         lastSoftRecoverAt = 0L
         dualPhaseRecovery.reset()
+        quadPhaseRecovery.reset()
         if (::frameAnalyzer.isInitialized) {
             frameAnalyzer.resetSession()
             frameAnalyzer.setAnalysisIdle(false)
@@ -477,6 +480,17 @@ class MainActivity : AppCompatActivity() {
             )) return
         statusText.text = "双码刷新相位不佳，正在重新定相（${dualPhaseRecovery.attempts}/3）"
         dualPhaseRecovery.rebase()
+        restartScanner(countRecovery = false, forceRebind = true)
+    }
+
+    private fun maybeRephaseQuadCamera(stats: ScanStats) {
+        if (!cameraStarted || bindingCamera || processRestarting || requestedFps != 60) return
+        if (inHalRecoveryWarmup()) return
+        val frames = stats.quadFrameCounts.sum()
+        val hits = stats.quadFrameCounts.withIndex().sumOf { (codes, count) -> codes.toLong() * count }
+        if (!quadPhaseRecovery.observe(stats.quadFullRefresh60, frames, hits)) return
+        statusText.text = "四码 60 FPS 命中率偏低，正在重新定相（${quadPhaseRecovery.attempts}/3）"
+        quadPhaseRecovery.rebase()
         restartScanner(countRecovery = false, forceRebind = true)
     }
 
@@ -905,6 +919,7 @@ class MainActivity : AppCompatActivity() {
         softDecoderRecoverAttempted = false
         lastSoftRecoverAt = 0L
         dualPhaseRecovery.reset()
+        quadPhaseRecovery.reset()
         frameAnalyzer.setAnalysisIdle(true)
         val bound = imageAnalysis
         if (bound != null) {
@@ -992,6 +1007,12 @@ class MainActivity : AppCompatActivity() {
         if (stats?.dualLayout == true) {
             lines.add(5, "双码：本帧 ${stats.decodedThisFrame} · 完整帧 ${stats.dualCompleteFrames} · 缺半帧 ${stats.dualPartialFrames} · 低频补扫 ${stats.dualRecoveryScans} · 重新定相 ${dualPhaseRecovery.attempts}/3")
             lines.add(6, "双码格位：A ${stats.dualLeftCropHits} · B ${stats.dualRightCropHits} · 轴向 ${stats.dualAxis} · 几何 ${stats.dualGeometry} · 缓存 ${if (stats.dualCacheAvailable) "有" else "无"}")
+        }
+        if (stats?.quadFullRefresh60 == true) {
+            val frameCounts = stats.quadFrameCounts.joinToString("/")
+            val slotHits = stats.quadSlotHits.joinToString("/")
+            lines.add(5, "四码 60：帧 0/1/2/3/4=$frameCounts · 补扫 ${stats.quadRecoveryScans} · 重新定相 ${quadPhaseRecovery.attempts}/3")
+            lines.add(6, "四码格位：左上/右上/左下/右下=$slotHits · 稳定缓存 ${if (stats.quadStableCacheAvailable) "有" else "无"}")
         }
         if (invalidFrameCount.get() > 0) lines.add("无效样本：$invalidFrameSample")
         fullDiagnostics = lines.joinToString("\n")
