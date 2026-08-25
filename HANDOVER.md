@@ -1,6 +1,6 @@
 # AirFerry Lite 交接文档
 
-更新时间：2026-08-24
+更新时间：2026-08-25
 
 本文记录当前 `main` 的真实状态、已验证结果、已排除方案，以及对上游
 [UR-SillyB/AirFerry](https://github.com/UR-SillyB/AirFerry) 四码 60 FPS 实现的分析。
@@ -10,8 +10,8 @@
 
 | 项目 | 当前值 |
 |---|---|
-| Android APK | `0.8.114-dual-rolling-shutter` |
-| versionCode | `128` |
+| Android APK | `0.8.116-quad-density-diagnostics` |
+| versionCode | `130` |
 | Web receiver build/cache | `v86` / `airferry-lite-v86` |
 | Android 解码器 | `zxing-cpp 2.3.0` |
 | 默认工作分支 | `main` |
@@ -22,9 +22,9 @@
 - GitHub Pages：
   <https://shuipashui.github.io/airferry-lite/sender/dist/airferry-lite-sender.html>
 - 当前 APK Action：
-  <https://github.com/shuipashui/airferry-lite/actions/runs/32661729788>
+  <https://github.com/shuipashui/airferry-lite/actions/runs/32796379916>
 - 当前 APK artifact：
-  <https://github.com/shuipashui/airferry-lite/actions/runs/32661729788/artifacts/9498933030>
+  <https://github.com/shuipashui/airferry-lite/actions/runs/32796379916/artifacts/9544984872>
 
 版本号或链接变化时，应同时更新本节，不能保留旧 APK 作为“当前版本”。
 
@@ -41,6 +41,17 @@
 - `50 FPS` 是真实的 5/6 屏幕刷新节拍，不是界面标签伪装成 50 FPS。
 - 双码发送链路允许两个独立数据流/缓存协作；旧文档中“禁止 dualStream”的说法已经失效。
 - 已移除“双码纵列”和“双码对角线”方案。它们没有解决相位与滚动快门问题，还增加了分支和误锁风险。
+- `0.8.115-dual-phase-recovery` 清空每轮接收的双码 ROI 缓存，避免跨会话沿用旧坐标。
+- 双码已锁定后，单个 QR 被滚动快门切坏时保持已确认的双格几何；只有同一帧重新识别到两个码才重建格位。
+- 60 FPS 双码连续多个窗口完整帧比例过低时，APK 自动重新绑定相机以改变屏幕/相机刷新相位；每轮接收最多尝试 3 次。
+- 以上恢复逻辑只在 `dualLayout=true` 且请求 60 FPS 时触发，四码 `quadStream` 路径未修改。
+
+### 0.8.115 修复验证
+
+- GitHub Actions：`32796379916` 构建成功。
+- APK artifact：`airferry-lite-android-debug`，下载页见本节顶部链接。
+- JS 全量测试：`npm test` 通过。
+- Android 新增双码布局保持和相位恢复状态机测试；本地未安装 Gradle，Android 单测由 Actions 构建环境执行。
 
 ### 四码
 
@@ -48,6 +59,8 @@
 - 当前 `60 FPS` 实现按对角线交替更新两码，因此每秒新符号量约等于
   `2 × 60 = 120 symbols/s`，不是四格每帧全部更新的 `240 symbols/s`。
 - 当前推荐仍是 `1465 B / 30 FPS`；50/60 FPS 在这台设备上没有带来对应吞吐提升。
+- 发送端四码现已开放 `1732 B (V30)`、`1952 B (V32)`、`2068 B (V33)` 实验档，上限为 `2068 B`。选择四码会按现有最高档逻辑预填 `2068 B`，但稳定对照仍是 `1465 B / 30 FPS`。
+- 发送端速率诊断显示 QR Version、码体模块数、静区、每模块设备像素和最终画布设备像素；APK 从实际 AFL2 帧显示帧字节、QR Version 和模块矩阵。
 
 ### 编码和页面部署
 
@@ -229,6 +242,9 @@ Lite 已有格位线程和缓存思路，但固定 N 格位、miss 保框和全�
 - 不要删除详细诊断；不同启动相位的差异必须依靠完整日志比较。
 
 ## 8. 构建、验证与发布
+
+- Android APK 必须通过 GitHub Actions 的 `Build Android receiver` workflow 构建，不使用本地 APK 作为交付产物。
+- 每次 Android 改动完成后，等待 Actions 构建成功，并向用户提供该次 run 的 APK artifact 下载链接。
 
 修改后至少执行：
 

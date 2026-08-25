@@ -29,7 +29,7 @@
   const RECEIVER_URL = "https://shuipashui.github.io/airferry-lite/";
   const QR_CACHE_LIMIT = 256;
   const QR_WORKER_COUNT = 4;
-  const QUAD_MAX_FRAME_BYTES = 1465;
+  const QUAD_MAX_FRAME_BYTES = 2068;
   const DUAL_FRAME_BYTES = 2068;
   const FPS_CHOICES = {
     single: [
@@ -63,7 +63,10 @@
     quad: [
       ["1003", "1003 B"],
       ["1273", "1273 B"],
-      ["1465", "1465 B"]
+      ["1465", "1465 B"],
+      ["1732", "1732 B（实验）"],
+      ["1952", "1952 B（实验）"],
+      ["2068", "2068 B（实验）"]
     ],
     dual: [
       ["1003", "1003 B"],
@@ -1083,7 +1086,8 @@
     const frameRate = Number(fps.value);
     const header = H?.HEADER_LEN || HEADER_LEN;
     const shape = layoutShape(codes);
-    const modules = qrModules(bytes) + shape.quiet * 2;
+    const qrModuleCount = qrModules(bytes);
+    const modules = qrModuleCount + shape.quiet * 2;
     const dpr = devicePixelRatioValue();
     const box = viewerContentBox();
     const scale = Math.min(
@@ -1096,6 +1100,11 @@
       fps: frameRate,
       screen: bytes * codes * frameRate,
       payload: Math.max(0, bytes - header) * codes * frameRate,
+      version: (qrModuleCount - 17) / 4,
+      qrModules: qrModuleCount,
+      quiet: shape.quiet,
+      canvasDeviceWidth: modules * shape.columns * scale,
+      canvasDeviceHeight: modules * shape.rows * scale,
       cell: scale / dpr,
       scale
     };
@@ -1105,7 +1114,7 @@
     if (!rateHint) return;
     const rate = currentLayout();
     let text = "理论速度：" + formatRate(rate.screen) + "（" + rate.bytes + " B × " + rate.codes + " 码 × " + rate.fps + " FPS）· 载荷约 " + formatRate(rate.payload);
-    if (rate.scale) text += " · 每模块 " + rate.scale + " 设备像素（整数）";
+    if (rate.scale) text += " · QR V" + rate.version + " / " + rate.qrModules + " 模块 · 静区 " + rate.quiet + " · 每模块 " + rate.scale + " 设备像素 · 画布 " + rate.canvasDeviceWidth + "×" + rate.canvasDeviceHeight + " 设备像素";
     if (rate.codes === 4) text += rate.fps === 50
       ? "。50 FPS 实验档：60 Hz 下按 6 个 vsync 更新 5 次，四码整屏同换"
       : "。30 FPS 四码整屏同换；60 FPS 仍交错换对角，避免四格同刷拖影";

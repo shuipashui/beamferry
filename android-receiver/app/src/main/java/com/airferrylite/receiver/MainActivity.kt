@@ -100,6 +100,7 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var highDuplicateCount = 0L
     @Volatile private var highProtocolErrors = 0L
     @Volatile private var highBytesReceived = 0L
+    @Volatile private var lastHighFrameBytes = 0
     @Volatile private var highLastFrameAt = 0L
     @Volatile private var invalidFrameSample = "—"
     private var lastHighUnique = 0
@@ -414,6 +415,7 @@ class MainActivity : AppCompatActivity() {
         highDuplicateCount = 0
         highProtocolErrors = 0
         highBytesReceived = 0
+        lastHighFrameBytes = 0
         highLastFrameAt = 0
         lastHighUnique = 0
         lastHighSolved = 0
@@ -785,6 +787,7 @@ class MainActivity : AppCompatActivity() {
     private fun handleHighSpeedFrame(bytes: ByteArray) {
         highFrameCount += 1
         highBytesReceived += bytes.size.toLong()
+        lastHighFrameBytes = bytes.size
         highLastFrameAt = SystemClock.elapsedRealtime()
         val update = highSpeedAssembler.accept(bytes)
         if (update.error != null) highProtocolErrors += 1
@@ -888,6 +891,7 @@ class MainActivity : AppCompatActivity() {
         highDuplicateCount = 0
         highProtocolErrors = 0
         highBytesReceived = 0
+        lastHighFrameBytes = 0
         highLastFrameAt = 0
         invalidFrameCount.set(0)
         invalidFrameSample = "—"
@@ -969,25 +973,25 @@ class MainActivity : AppCompatActivity() {
             scanSessionStartedAt == 0L -> "—"
             else -> formatDuration(now - scanSessionStartedAt)
         }
-        val lines = listOf(
+        val lines = mutableListOf(
             "设备：${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE} · App ${BuildConfig.VERSION_NAME}",
             "相机：${stats?.width ?: "?"}×${stats?.height ?: "?"} · 采集 ${stats?.captureFps?.let { "%.1f".format(it) } ?: "?"} FPS · 选择 $requestedFps · 目标 ${preferredFpsLabel()}",
             "分析流 FPS：$availableCameraFpsLabel",
-            "高速录像能力：$highSpeedCameraFpsLabel（CameraX 分析流不可直接使用）",
             "分析：提交 ${stats?.submittedFrames ?: 0} · 完成 ${stats?.analysisFps?.let { "%.1f".format(it) } ?: "0"} FPS · 丢帧 ${stats?.droppedFrames ?: 0}",
             "解码：zxing-cpp · 平均 ${stats?.averageDecodeMs?.let { "%.1f ms".format(it) } ?: "—"} · 单码命中 ${stats?.singleHits ?: 0} · 多码扫描 ${stats?.multiScans ?: 0}（命中 ${stats?.multiHits ?: 0}${perFrameLabel(stats)}）",
-            "双码：本帧 ${stats?.decodedThisFrame ?: 0} · 完整帧 ${stats?.dualCompleteFrames ?: 0} · 缺半帧 ${stats?.dualPartialFrames ?: 0} · 低频补扫 ${stats?.dualRecoveryScans ?: 0} · 重新定相 ${dualPhaseRecovery.attempts}/3",
-            "双码格位：A ${stats?.dualLeftCropHits ?: 0} · B ${stats?.dualRightCropHits ?: 0} · 轴向 ${stats?.dualAxis ?: "unlocked"} · 几何 ${stats?.dualGeometry ?: "unlocked"} · 去重后每帧 ${stats?.let { if (it.multiScans > 0) "%.2f".format(it.multiHits.toDouble() / it.multiScans) else "0" } ?: "0"}",
-            "引导：双格缓存 ${if (stats?.dualCacheAvailable == true) "有" else "无"} · 备用二值化 ${stats?.bootstrapRetryScans ?: 0} 次",
             "分析器：线程 ${stats?.workerCount ?: "?"} · 忙 ${stats?.workerBusy ?: "?"} · 空结果 ${stats?.emptyDecodes ?: 0} · 异常 ${stats?.decodeErrors ?: 0} · 新缓冲 ${stats?.bufferAllocations ?: 0}",
             "看门狗：恢复 ${stats?.pipelineRecoveries ?: 0} 次 · 心跳 ${if (lastStatsAt == 0L) "—" else "${(now - lastStatsAt).coerceAtLeast(0)} ms"}",
             "曝光：点测 $aeMeterCount · 补偿 $lastEvIndex · 轻推 $aeNudgeCount",
             "ROI：${roiLabel(stats)} · 连续未命中 ${stats?.roiMisses ?: 0} · 布局 ${layoutLabel(stats)}",
+            "码密度：${qrDensityLabel(lastHighFrameBytes)}",
             "协议：二维码 ${decodedQrCount.get()} · AFL2 ${highFrameCount} · 唯一 ${highUniqueFrameCount} · 重复 ${highDuplicateCount} · 无效 ${invalidFrameCount.get()} · 错误 ${highProtocolErrors} · 队列 ${pendingProtocolFrames.get()} · 解块 ${lastHighSolved}/${lastHighTotal}",
-            "高速会话：总耗时 $sessionElapsed · 最近帧 $highAge · 唯一载荷 ${formatBytes(sessionUniquePayloadBytes)} · 光学 ${formatBytes(highBytesReceived)} · 速度 ${latestSpeedLabel} · 会话 ${formatRate(sessionAverageBytesPerSecond)}",
-            "无效样本：$invalidFrameSample",
-            "设备标识：${Build.FINGERPRINT}"
+            "高速会话：总耗时 $sessionElapsed · 最近帧 $highAge · 唯一载荷 ${formatBytes(sessionUniquePayloadBytes)} · 光学 ${formatBytes(highBytesReceived)} · 速度 ${latestSpeedLabel} · 会话 ${formatRate(sessionAverageBytesPerSecond)}"
         )
+        if (stats?.dualLayout == true) {
+            lines.add(5, "双码：本帧 ${stats.decodedThisFrame} · 完整帧 ${stats.dualCompleteFrames} · 缺半帧 ${stats.dualPartialFrames} · 低频补扫 ${stats.dualRecoveryScans} · 重新定相 ${dualPhaseRecovery.attempts}/3")
+            lines.add(6, "双码格位：A ${stats.dualLeftCropHits} · B ${stats.dualRightCropHits} · 轴向 ${stats.dualAxis} · 几何 ${stats.dualGeometry} · 缓存 ${if (stats.dualCacheAvailable) "有" else "无"}")
+        }
+        if (invalidFrameCount.get() > 0) lines.add("无效样本：$invalidFrameSample")
         fullDiagnostics = lines.joinToString("\n")
         diagnosticsText.text = fullDiagnostics
     }
@@ -1042,6 +1046,23 @@ class MainActivity : AppCompatActivity() {
         val hits = stats?.multiHits ?: 0
         if (scans <= 0 || hits <= 0) return ""
         return " · 每帧 %.2f".format(hits.toDouble() / scans)
+    }
+
+    private fun qrDensityLabel(frameBytes: Int): String {
+        if (frameBytes <= 0) return "等待 AFL2 帧"
+        val modules = when {
+            frameBytes <= 1003 -> 105
+            frameBytes <= 1273 -> 117
+            frameBytes <= 1465 -> 125
+            frameBytes <= 1732 -> 137
+            frameBytes <= 1952 -> 145
+            frameBytes <= 2068 -> 149
+            frameBytes <= 2188 -> 153
+            frameBytes <= 2303 -> 157
+            frameBytes <= 2431 -> 161
+            else -> 177
+        }
+        return "帧 $frameBytes B · QR V${(modules - 17) / 4} · ${modules}×${modules} 模块"
     }
 
     private fun preferredFpsLabel(): String = activeCameraFps?.let { "${it.lower}-${it.upper}" } ?: "未知"
