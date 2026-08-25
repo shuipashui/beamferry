@@ -30,7 +30,8 @@ assert.ok(androidMain.includes("maybeRephaseDualCamera(stats)"), "Android 60 FPS
 assert.ok(androidMain.includes("maybeRephaseQuadCamera(stats)"), "experimental quad 60 FPS must escape sustained bad camera/display phase");
 assert.ok(androidMain.includes("stats.quadFullRefresh60"), "ordinary quad streams must not trigger quad 60 FPS rephasing");
 assert.ok(androidAnalyzer.includes("stableQuadTiles"), "experimental quad 60 FPS must preserve a stable four-tile cache");
-assert.ok(androidAnalyzer.includes("QUAD_RECOVERY_INTERVAL = 8"), "experimental quad recovery scans must be rate limited");
+assert.ok(androidAnalyzer.includes("QUAD_RECOVERY_INTERVAL = 12"), "experimental quad recovery scans must be rate limited");
+assert.ok(androidAnalyzer.includes("val recoverNow = count == 0"), "experimental quad recovery must wait for complete misses");
 assert.ok(androidAnalyzer.includes("!quadFullRefresh60.get() ||"), "ordinary quad decoding must retain its original immediate recovery path");
 for (const needle of [
   "const MAX_FILE_SIZE = 64 * 1024 * 1024;",

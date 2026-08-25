@@ -355,8 +355,8 @@ class QrFrameAnalyzer(
         if (previousTiles.size >= 4 && transferCount(merged) >= 3) return merged
         if (lockedQuad) {
             val count = transferCount(merged)
-            if (count >= 2) quadRecoveryTick.set(0)
-            val recoverNow = count < 2 && (
+            if (count > 0) quadRecoveryTick.set(0)
+            val recoverNow = count == 0 && (
                 !quadFullRefresh60.get() ||
                     quadRecoveryTick.incrementAndGet() >= QUAD_RECOVERY_INTERVAL
                 )
@@ -792,7 +792,7 @@ class QrFrameAnalyzer(
         private const val STALE_TIMESTAMP_LIMIT = 12
         private const val TILE_UNDERCOUNT_LIMIT = 3
         private const val DUAL_RECOVERY_INTERVAL = 8
-        private const val QUAD_RECOVERY_INTERVAL = 8
+        private const val QUAD_RECOVERY_INTERVAL = 12
         private const val BOOTSTRAP_RETRY_INTERVAL = 8
         private const val STABLE_CACHE_MISS_LIMIT = 3
     }

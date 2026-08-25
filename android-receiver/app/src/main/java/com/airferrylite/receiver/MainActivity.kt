@@ -488,9 +488,16 @@ class MainActivity : AppCompatActivity() {
         if (inHalRecoveryWarmup()) return
         val frames = stats.quadFrameCounts.sum()
         val hits = stats.quadFrameCounts.withIndex().sumOf { (codes, count) -> codes.toLong() * count }
-        if (!quadPhaseRecovery.observe(stats.quadFullRefresh60, frames, hits)) return
-        statusText.text = "四码 60 FPS 命中率偏低，正在重新定相（${quadPhaseRecovery.attempts}/3）"
-        quadPhaseRecovery.rebase()
+        if (!quadPhaseRecovery.observe(
+                stats.quadFullRefresh60,
+                frames,
+                hits,
+                lastHighSolved,
+                lastHighTotal,
+                speedBytesPerSecond
+            )) return
+        statusText.text = "四码 60 FPS 早期命中率偏低，正在重新定相（${quadPhaseRecovery.attempts}/1）"
+        quadPhaseRecovery.rebase(frames, hits)
         restartScanner(countRecovery = false, forceRebind = true)
     }
 
@@ -1011,7 +1018,9 @@ class MainActivity : AppCompatActivity() {
         if (stats?.quadFullRefresh60 == true) {
             val frameCounts = stats.quadFrameCounts.joinToString("/")
             val slotHits = stats.quadSlotHits.joinToString("/")
-            lines.add(5, "四码 60：帧 0/1/2/3/4=$frameCounts · 补扫 ${stats.quadRecoveryScans} · 重新定相 ${quadPhaseRecovery.attempts}/3")
+            val phaseBefore = quadPhaseRecovery.beforeQrPerFrame?.let { String.format("%.2f", it) } ?: "—"
+            val phaseAfter = quadPhaseRecovery.afterQrPerFrame?.let { String.format("%.2f", it) } ?: "—"
+            lines.add(5, "四码 60：帧 0/1/2/3/4=$frameCounts · 补扫 ${stats.quadRecoveryScans} · 重新定相 ${quadPhaseRecovery.attempts}/1 · 前/后 $phaseBefore/$phaseAfter QR/帧")
             lines.add(6, "四码格位：左上/右上/左下/右下=$slotHits · 稳定缓存 ${if (stats.quadStableCacheAvailable) "有" else "无"}")
         }
         if (invalidFrameCount.get() > 0) lines.add("无效样本：$invalidFrameSample")
