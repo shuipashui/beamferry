@@ -20,11 +20,11 @@
 | 推荐四码参数 | `2068 B / 30 FPS`，2×2 排列；发送端首次打开默认 |
 
 - GitHub Pages：
-  <https://shuipashui.github.io/airferry-lite/sender/dist/airferry-lite-sender.html>
+  <https://shuipashui.github.io/beamferry/sender/dist/airferry-lite-sender.html>
 - 当前 APK Action：
-  <https://github.com/shuipashui/airferry-lite/actions/runs/32796379916>
+  <https://github.com/shuipashui/beamferry/actions/runs/32796379916>
 - 当前 APK artifact：
-  <https://github.com/shuipashui/airferry-lite/actions/runs/32796379916/artifacts/9544984872>
+  <https://github.com/shuipashui/beamferry/actions/runs/32796379916/artifacts/9544984872>
 
 版本号或链接变化时，应同时更新本节，不能保留旧 APK 作为“当前版本”。
 
