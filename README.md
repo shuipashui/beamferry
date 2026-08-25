@@ -3,14 +3,14 @@
 电脑浏览器把文件编成连续二维码，手机摄像头扫回来，不经过服务器。
 
 - 发送端：单文件 HTML，可直接打开，并显示手机接收页地址和二维码
-- 网页接收端：https://shuipashui.github.io/airferry-lite/
+- 网页接收端：https://shuipashui.github.io/beamferry/
 - Android 接收端：原生应用，Android 10+
 - 当前传输为 AFL2（二进制帧 + 喷泉码）；旧 AFL1 发送端仍可接收
 - 文件只在发送电脑和接收手机本地处理
 
 ## 使用
 
-- 发送端：https://shuipashui.github.io/airferry-lite/sender/dist/airferry-lite-sender.html
+- 发送端：https://shuipashui.github.io/beamferry/sender/dist/airferry-lite-sender.html
 - 网页接收端也可从发送页右侧的地址 / 二维码进入；开始播放文件码流后该入口会隐藏
 
 1. 在电脑打开发送端，选择文件。
