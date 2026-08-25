@@ -10,7 +10,7 @@
 
 | 项目 | 当前值 |
 |---|---|
-| Android APK | `0.8.117-quad-2068-default` |
+| Android APK | `0.8.118-beamferry` |
 | versionCode | `131` |
 | Web receiver build/cache | `v86` / `airferry-lite-v86` |
 | Android 解码器 | `zxing-cpp 2.3.0` |

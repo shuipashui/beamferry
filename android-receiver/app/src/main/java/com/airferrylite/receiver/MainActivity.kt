@@ -1019,7 +1019,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val saved = saveFile(pending.name, pending.mime, pending.bytes)
-        statusText.text = saved?.let { "已保存到 Download/AirFerry Lite/$it" } ?: "保存失败"
+        statusText.text = saved?.let { "已保存到 Download/BeamFerry/$it" } ?: "保存失败"
     }
 
     private fun roiLabel(stats: ScanStats?): String {
@@ -1072,7 +1072,7 @@ class MainActivity : AppCompatActivity() {
     private fun copyDiagnostics() {
         renderDiagnostics()
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("AirFerry Lite 诊断", fullDiagnostics.ifBlank { diagnosticsText.text }))
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("BeamFerry 诊断", fullDiagnostics.ifBlank { diagnosticsText.text }))
         statusText.text = "诊断信息已复制"
     }
 
@@ -1098,7 +1098,7 @@ class MainActivity : AppCompatActivity() {
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, safeName)
             put(MediaStore.MediaColumns.MIME_TYPE, mime.ifBlank { "application/octet-stream" })
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/AirFerry Lite")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/BeamFerry")
         }
         return try {
             val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return null

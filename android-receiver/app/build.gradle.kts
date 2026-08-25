@@ -6,7 +6,7 @@ android { namespace = "com.airferrylite.receiver"; compileSdk = 35
         minSdk = 29
         targetSdk = 35
         versionCode = 131
-        versionName = "0.8.117-quad-2068-default"
+        versionName = "0.8.118-beamferry"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
     buildTypes { release { isMinifyEnabled = false; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro") } }
