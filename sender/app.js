@@ -658,7 +658,7 @@
       const timer = setTimeout(() => {
         const at = queueWaiters.indexOf(waiter);
         if (at >= 0) queueWaiters.splice(at, 1);
-        reject(new Error("生成超时。请用 Chrome 打开 sender/dist/airferry-lite-sender.html，不要用 Internet Explorer"));
+        reject(new Error("生成超时。请用 Chrome 打开 sender/dist/beamferry-sender.html，不要用 Internet Explorer"));
       }, 20000);
       queueWaiters.push(waiter);
     });

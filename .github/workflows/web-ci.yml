@@ -57,4 +57,4 @@ jobs:
       - name: Rebuild single-file sender
         run: npm run build:sender
       - name: Verify committed sender artifact is reproducible
-        run: git diff --exit-code -- sender/dist/airferry-lite-sender.html
+        run: git diff --exit-code -- sender/dist/beamferry-sender.html
