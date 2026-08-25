@@ -86,6 +86,7 @@ class MainActivity : AppCompatActivity() {
     private var speedWindowBytes = 0L
     private var speedBytesPerSecond = 0.0
     private var sessionStartedAt = 0L
+    private var completedHighSessionDurationMs = -1L
     private var sessionUniquePayloadBytes = 0L
     private var sessionAverageBytesPerSecond = 0.0
     private val rollingRates = DoubleArray(3)
@@ -830,6 +831,7 @@ class MainActivity : AppCompatActivity() {
             renderDiagnostics()
         }
         if (file != null && update.session != null) {
+            completedHighSessionDurationMs = if (sessionStartedAt != 0L) (now - sessionStartedAt).coerceAtLeast(0L) else -1L
             freezeSessionDuration(now)
             offerCompletedFile("high:${update.session}", file.name, file.mime, file.bytes)
         }
@@ -969,9 +971,9 @@ class MainActivity : AppCompatActivity() {
         val now = SystemClock.elapsedRealtime()
         val highAge = if (highLastFrameAt == 0L) "—" else "${(now - highLastFrameAt).coerceAtLeast(0)} ms"
         val sessionElapsed = when {
-            completedSessionDurationMs >= 0L -> formatDuration(completedSessionDurationMs)
-            scanSessionStartedAt == 0L -> "—"
-            else -> formatDuration(now - scanSessionStartedAt)
+            completedHighSessionDurationMs >= 0L -> formatDuration(completedHighSessionDurationMs)
+            sessionStartedAt != 0L -> formatDuration(now - sessionStartedAt)
+            else -> "等待首个 AFL2 帧"
         }
         val lines = mutableListOf(
             "设备：${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE} · App ${BuildConfig.VERSION_NAME}",
@@ -1080,6 +1082,7 @@ class MainActivity : AppCompatActivity() {
         speedWindowBytes = 0
         speedBytesPerSecond = 0.0
         sessionStartedAt = 0
+        completedHighSessionDurationMs = -1L
         scanSessionStartedAt = 0
         completedSessionDurationMs = -1L
         sessionUniquePayloadBytes = 0
