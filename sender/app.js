@@ -1151,6 +1151,9 @@
   }
 
   function fastestChunk(layout) {
+    if (layout === "single") return "2953";
+    if (layout === "quad") return "2068";
+    if (layout === "dual") return "2068";
     const choices = CHUNK_CHOICES[layout] || CHUNK_CHOICES.single;
     return choices[choices.length - 1][0];
   }
