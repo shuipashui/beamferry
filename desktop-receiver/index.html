@@ -25,7 +25,7 @@
 </head>
 <body>
   <main class="app">
-    <header><div class="mark">BF</div><div><h1>BeamFerry</h1><p>电脑屏幕接收端 · 单码 / 四码</p></div><a id="openSender" class="jump small" href="../sender/dist/beamferry-sender.html">打开发送端</a></header>
+    <header><div class="mark">BF</div><div><h1>BeamFerry</h1><p>电脑屏幕接收端 · 单码 / 四码</p></div><a id="openSender" class="jump small" href="../sender/dist/beamferry-sender.html" target="_blank" rel="noopener">打开发送端</a></header>
     <div class="actions">
       <button id="startBtn" class="primary">选择屏幕源</button>
       <button id="stopBtn" disabled>停止</button>
@@ -50,7 +50,7 @@
     <div class="progress"><i id="progressBar"></i></div>
     <section class="card missing-card"><div class="row"><strong>缺失片段</strong><button id="copyMissing" class="small" disabled>复制编号</button></div><code id="missing">-</code></section>
     <section class="card diagnostics"><div class="row"><strong>诊断信息</strong><button id="copyDiagnosticsCard" class="small">复制诊断</button></div><pre id="diagnostics">等待开始扫描</pre></section>
-    <section id="result" class="card result" hidden><strong>文件已恢复</strong><span id="resultInfo"></span><a id="download" class="download" download>下载文件</a></section>
+    <section id="result" class="card result" hidden><strong>文件已恢复</strong><span id="resultInfo"></span><a id="download" class="download" download aria-disabled="true">下载文件</a></section>
     <p class="note">仅使用屏幕捕获，不访问摄像头。建议优先选择二维码所在的窗口或标签页，并确保完整画面未被裁切。浏览器要求页面运行在 HTTPS 或 localhost。</p>
     <div class="sticky-bar"><button type="button" id="copyDiagnostics" class="small">复制诊断</button></div>
   </main>

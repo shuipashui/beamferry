@@ -67,7 +67,7 @@
   const HIGH_QUAD_TILE_MISS_LIMIT = 6;
   const HIGH_QUAD_FROZEN_MISS_LIMIT = 24;
   const HIGH_SINGLE_INFLIGHT = 4;
-  const HIGH_QUAD_INFLIGHT = 2;
+  const HIGH_QUAD_INFLIGHT = 3;
   const HIGH_QUAD_GRAB_MS = 12;
 
   let stream = null;
@@ -196,6 +196,9 @@
   copyMissing.onclick = copyMissingIndexes;
   copyDiagnostics?.addEventListener("click", copyDiagnosticsText);
   copyDiagnosticsCard?.addEventListener("click", copyDiagnosticsText);
+  download.addEventListener("click", event => {
+    if (!download.hasAttribute("href")) event.preventDefault();
+  });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && hideStopTimer) {
       clearTimeout(hideStopTimer);
@@ -273,8 +276,7 @@
       status.textContent = "正在恢复断点，请稍候";
       return;
     }
-    if (cameraPreviewLive()) return;
-    if (stream) closeCamera();
+    reset();
     startInFlight = true;
     cameraEndedWhileStarting = false;
     startBtn.disabled = true;
@@ -285,10 +287,17 @@
       }
       const previewFpsCap = previewFps === 30 ? 30 : 60;
       cameraRequestedFps = previewFpsCap;
-      stream = await navigator.mediaDevices.getDisplayMedia({
+      const captureController = typeof window.CaptureController === "function" &&
+        typeof window.CaptureController.prototype?.setFocusBehavior === "function"
+        ? new window.CaptureController()
+        : null;
+      try { captureController?.setFocusBehavior("focus-capturing-application"); } catch (_) {}
+      const displayOptions = {
         video: { frameRate: { ideal: previewFpsCap, max: previewFpsCap } },
         audio: false
-      });
+      };
+      if (captureController) displayOptions.controller = captureController;
+      stream = await navigator.mediaDevices.getDisplayMedia(displayOptions);
       lastUsedLuma = false;
       lumaUnavailable = false;
       resetScanStats();
@@ -512,6 +521,7 @@
     result.hidden = true;
     if (download.href) URL.revokeObjectURL(download.href);
     download.removeAttribute("href");
+    download.setAttribute("aria-disabled", "true");
     status.textContent = "等待开始";
     resetScanStats();
     flushPendingChunks();
@@ -2207,6 +2217,7 @@
       if (download.href) URL.revokeObjectURL(download.href);
       download.href = URL.createObjectURL(blob);
       download.download = opticalFile.name;
+      download.setAttribute("aria-disabled", "false");
       fileName.textContent = opticalFile.name;
       resultInfo.textContent = formatBytes(opticalFile.bytes.length) + " · " + formatRate(container.length / seconds) + " · SHA-256 校验通过";
       result.hidden = false;
@@ -2691,6 +2702,7 @@
     if (download.href) URL.revokeObjectURL(download.href);
     download.href = URL.createObjectURL(blob);
     download.download = meta.name;
+    download.setAttribute("aria-disabled", "false");
     resultInfo.textContent = formatBytes(output.length) + " · CRC-32 校验通过";
     result.hidden = false;
     closeCamera();
