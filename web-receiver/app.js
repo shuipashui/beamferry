@@ -1,5 +1,5 @@
 (() => {
-  const RECEIVER_BUILD = "v87";
+  const RECEIVER_BUILD = "v88";
   if ("serviceWorker" in navigator) {
     Promise.resolve(navigator.serviceWorker.register("sw.js?v=" + RECEIVER_BUILD)).then(reg => {
       reg?.update?.()?.catch?.(() => {});
@@ -67,7 +67,7 @@
   const HIGH_QUAD_TILE_MISS_LIMIT = 6;
   const HIGH_QUAD_FROZEN_MISS_LIMIT = 24;
   const HIGH_SINGLE_INFLIGHT = 4;
-  const HIGH_QUAD_INFLIGHT = 1;
+  const HIGH_QUAD_INFLIGHT = 2;
   const HIGH_QUAD_GRAB_MS = 33;
 
   let stream = null;
@@ -148,6 +148,7 @@
   let highUniqueFrames = 0;
   let highInvalidFrames = 0;
   let highDuplicateFrames = 0;
+  let unsupportedDualFrames = 0;
   let highSequenceGaps = 0;
   let highLastLogicalSequence = -1;
   let highProtocolBytes = 0;
@@ -944,14 +945,13 @@
   }
 
   function lockQuadSlots(fresh, sighting) {
-    if (!fresh || fresh.length < 2) return;
+    if (!fresh || !fresh.length) return;
     mergeVideoTiles(fresh, sighting);
     if (sighting) return;
     if ((highTrackedTiles || []).filter(Boolean).length >= 2) {
       highTrackedTiles = inferMissingQuadTiles(highTrackedTiles);
-      highTileProven = (highTrackedTiles || []).map(tile => !!tile);
     }
-    highQuadFrozen = (highTrackedTiles || []).filter(Boolean).length >= 4;
+    highQuadFrozen = highTileProven.every(Boolean);
   }
 
   function evenRect(x, y, width, height, maxW, maxH) {
@@ -1327,36 +1327,6 @@
     };
   }
 
-  function slotContainingHit(hit) {
-    const center = hitCenter(hit);
-    if (!center || !highTrackedTiles) return -1;
-    let owner = -1;
-    for (let index = 0; index < 4; index += 1) {
-      const tile = highTrackedTiles[index];
-      if (!tile) continue;
-      const scan = inflateRect(tile, HIGH_TILE_PAD);
-      if (center.x >= scan.x && center.x < scan.x + scan.width && center.y >= scan.y && center.y < scan.y + scan.height) {
-        if (owner >= 0) return -1;
-        owner = index;
-      }
-    }
-    return owner;
-  }
-
-  function followContainedQuadHits(hits) {
-    if (!highTrackedTiles) return;
-    const next = highTrackedTiles.slice();
-    const claimed = [false, false, false, false];
-    for (const hit of hits) {
-      const tile = transferHitTile(hit);
-      const slot = slotContainingHit(hit);
-      if (!tile || slot < 0 || claimed[slot]) continue;
-      claimed[slot] = true;
-      next[slot] = tile;
-    }
-    highTrackedTiles = next;
-  }
-
   function rememberQuadHits(hits) {
     const transferHits = hits.filter(hit => transferHitKey(hit));
     if (!transferHits.length) {
@@ -1372,7 +1342,7 @@
     highScanMisses = 0;
     const multiFrame = transferHits.some(hit => {
       const codes = H.parseFrame(hit.bytes)?.header.layoutCodes;
-      return codes === 2 || codes === 4;
+      return codes === 4;
     });
     if (multiFrame || transferHits.length >= 2) {
       highMultiLayout = true;
@@ -1409,16 +1379,13 @@
       else if (transferHits.length >= 2) highScanRoi = next;
     }
     if (highMultiLayout && transferHits.length) {
-      if (highQuadFrozen) {
-        followContainedQuadHits(transferHits);
-      } else {
+      if (!highQuadFrozen) {
         const tiles = [];
         for (const hit of transferHits) {
           const tile = transferHitTile(hit);
           if (tile) tiles.push(tile);
         }
-        if (tiles.length >= 2) lockQuadSlots(tiles, false);
-        if (transferHits.length >= 4 && (highTrackedTiles || []).filter(Boolean).length >= 4) highQuadFrozen = true;
+        if (tiles.length) lockQuadSlots(tiles, false);
       }
     }
   }
@@ -2067,6 +2034,7 @@
     highUniqueFrames = 0;
     highInvalidFrames = 0;
     highDuplicateFrames = 0;
+    unsupportedDualFrames = 0;
     highSequenceGaps = 0;
     highLastLogicalSequence = -1;
     highProtocolBytes = 0;
@@ -2101,7 +2069,16 @@
     highFramesSeen += 1;
     const parsed = H?.parseFrame(bytes);
     if (parsed) {
-      if (parsed.header.layoutCodes === 2 || parsed.header.layoutCodes === 4) highMultiLayout = true;
+      if (parsed.header.layoutCodes === 2) {
+        unsupportedDualFrames += 1;
+        status.textContent = "网页接收端仅支持单码和四码，请切换发送布局";
+        return;
+      }
+      if (parsed.header.layoutCodes !== 1 && parsed.header.layoutCodes !== 4) {
+        highInvalidFrames += 1;
+        return;
+      }
+      if (parsed.header.layoutCodes === 4) highMultiLayout = true;
       const before = highDecoder?.framesNew || 0;
       acceptHighSpeedFrame(parsed);
       const after = highDecoder?.framesNew || 0;
@@ -2601,12 +2578,13 @@
         " · 扫描 " + currentHighScanSize() + " · 布局 " + (highMultiLayout ? "四码" : "单码") +
         (highScanRoi ? " · ROI" : " · 全图") +
         (highTrackedTiles ? " · 格 " + highTrackedTiles.filter(Boolean).length : "") +
+        (highMultiLayout ? " · 校准 " + highTileProven.filter(Boolean).length + "/4" : "") +
         (highMultiLayout && lastQuadTiles >= 2 ? " · 切格" : "") + perFrameLabel(),
       "调度：Worker 就绪 " + highWorkerReady.filter(Boolean).length + "/" + workerCount +
         " · 忙时丢弃 " + workerBusyDrops + " · 重启 " + workerRestarts + " · 错误 " + workerErrors +
         " · 连续未识别 " + highScanMisses,
       "协议：识别 " + highFramesSeen + " · 唯一 " + highUniqueFrames + " · 重复 " + highDuplicateFrames +
-        " · 无效 " + highInvalidFrames + " · 序列跳跃 " + highSequenceGaps +
+        " · 拒绝双码 " + unsupportedDualFrames + " · 无效 " + highInvalidFrames + " · 序列跳跃 " + highSequenceGaps +
         " · 解块 " + (highDecoder?.solvedCount || 0) + "/" + (highDecoder?.k || 0),
       "高速会话：最近帧 " + (highLastFrameAt ? Math.max(0, Math.round(performance.now() - highLastFrameAt)) + " ms" : "—") +
         " · 有效载荷 " + formatBytes(highProtocolBytes) + " · 速度 " + latestSpeedLabel +
