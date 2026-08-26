@@ -61,7 +61,8 @@ data class ScanStats(
 
 /** Latest-frame zxing-cpp scan on the CameraX analyzer thread. */
 class QrFrameAnalyzer(
-    private val onDecoded: (DecodedQr) -> Unit,
+    private val onDecoded: (DecodedQr) -> Unit = {},
+    private val onDecodedBatch: ((List<DecodedQr>) -> Unit)? = null,
     private val onStats: (ScanStats) -> Unit = {}
 ) : ImageAnalysis.Analyzer {
     @Volatile private var decoder = NativeQrDecoder()
@@ -616,7 +617,8 @@ class QrFrameAnalyzer(
             singleHits.addAndGet(transferHits.size.toLong())
         }
         rememberRoi(imageWidth, imageHeight, transferHits)
-        transferHits.forEach { onDecoded(DecodedQr(QrPayload.bytesFrom(it.bytes, it.text), it.text)) }
+        val decoded = transferHits.map { DecodedQr(QrPayload.bytesFrom(it.bytes, it.text), it.text) }
+        if (onDecodedBatch != null) onDecodedBatch.invoke(decoded) else decoded.forEach(onDecoded)
     }
 
     private fun lockMultiLayout() {
@@ -670,12 +672,8 @@ class QrFrameAnalyzer(
             quadStream.get() -> {
                 tileUndercount.set(0)
                 val grid = quadTileGrid(imageWidth, imageHeight)
-                val stable = stableQuadTiles.get()?.takeIf { it.size >= 4 }
                 val base = previous?.takeIf { it.size >= 4 } ?: grid
-                // A rolling-shutter fragment has distorted bounds. Once the
-                // high-FPS four-cell grid is fixed, partial hits must not drag it.
-                val next = if (quadFullRefresh60.get()) stable ?: grid
-                else ScanLayout.followContainedHits(base, perCode, imageWidth, imageHeight)
+                val next = ScanLayout.followContainedHits(base, perCode, imageWidth, imageHeight)
                 trackedTiles.set(next)
                 if (quadFullRefresh60.get() && next.size >= 4) stableQuadTiles.set(next)
             }

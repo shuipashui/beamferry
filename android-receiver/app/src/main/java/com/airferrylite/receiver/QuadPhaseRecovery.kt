@@ -3,7 +3,7 @@ package com.airferrylite.receiver
 /** Detects a sustained low-yield phase for the experimental four-code 60 FPS stream. */
 internal class QuadPhaseRecovery(
     private val minimumFrames: Long = 45,
-    private val poorQrPerFrame: Double = 0.75,
+    private val poorQrPerFrame: Double = 0.20,
     private val poorWindowsRequired: Int = 1,
     private val maximumAttempts: Int = 1,
     private val maximumProgress: Double = 0.15,

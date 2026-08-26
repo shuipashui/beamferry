@@ -8,7 +8,7 @@ class QuadPhaseRecoveryTest {
     @Test
     fun sustainedLowYieldRequestsRephase() {
         val recovery = QuadPhaseRecovery()
-        assertTrue(recovery.observe(true, 60, 30, 10, 100, 80_000.0))
+        assertTrue(recovery.observe(true, 60, 6, 10, 100, 80_000.0))
     }
 
     @Test
@@ -43,10 +43,10 @@ class QuadPhaseRecoveryTest {
     @Test
     fun recordsYieldBeforeAndAfterTheSingleRephase() {
         val recovery = QuadPhaseRecovery()
-        assertTrue(recovery.observe(true, 60, 30, 0, 100, 0.0))
-        recovery.rebase(60, 30)
-        assertFalse(recovery.observe(true, 120, 120, 0, 100, 0.0))
-        assertTrue(recovery.beforeQrPerFrame == 0.5)
+        assertTrue(recovery.observe(true, 60, 6, 0, 100, 0.0))
+        recovery.rebase(60, 6)
+        assertFalse(recovery.observe(true, 120, 96, 0, 100, 0.0))
+        assertTrue(recovery.beforeQrPerFrame == 0.1)
         assertTrue(recovery.afterQrPerFrame == 1.5)
     }
 }

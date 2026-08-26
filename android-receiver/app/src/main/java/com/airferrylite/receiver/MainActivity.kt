@@ -96,6 +96,7 @@ class MainActivity : AppCompatActivity() {
     private val decodedQrCount = AtomicLong(0)
     private val invalidFrameCount = AtomicLong(0)
     private val pendingProtocolFrames = AtomicInteger(0)
+    private val protocolBatchCount = AtomicLong(0)
     @Volatile private var highFrameCount = 0L
     @Volatile private var highUniqueFrameCount = 0L
     @Volatile private var highDuplicateCount = 0L
@@ -230,25 +231,29 @@ class MainActivity : AppCompatActivity() {
         cameraExecutor = Executors.newSingleThreadExecutor()
         protocolExecutor = Executors.newSingleThreadExecutor()
         frameAnalyzer = QrFrameAnalyzer(
-            onDecoded = { decoded ->
-                decodedQrCount.incrementAndGet()
-                val bytes = decoded.bytes
-                if (bytes != null && HighSpeedAssembler.looksLikeFrame(bytes)) {
+            onDecodedBatch = { decodedBatch ->
+                decodedQrCount.addAndGet(decodedBatch.size.toLong())
+                val highSpeedBytes = decodedBatch.mapNotNull { it.bytes }
+                    .filter { HighSpeedAssembler.looksLikeFrame(it) }
+                if (highSpeedBytes.isNotEmpty()) {
                     highSpeedSessionActive = true
                     val epoch = protocolEpoch.get()
                     pendingProtocolFrames.incrementAndGet()
+                    protocolBatchCount.incrementAndGet()
                     protocolExecutor.execute {
                         try {
                             if (epoch != protocolEpoch.get()) return@execute
-                            handleHighSpeedFrame(bytes)
+                            for (bytes in highSpeedBytes) handleHighSpeedFrame(bytes)
                         } catch (_: Throwable) {
                             highProtocolErrors += 1
                         } finally {
                             pendingProtocolFrames.decrementAndGet()
                         }
                     }
-                } else {
-                    ContextCompat.getMainExecutor(this).execute { handleResult(decoded) }
+                } else if (decodedBatch.isNotEmpty()) {
+                    ContextCompat.getMainExecutor(this).execute {
+                        decodedBatch.forEach { handleResult(it) }
+                    }
                 }
             },
             onStats = { stats ->
@@ -415,6 +420,7 @@ class MainActivity : AppCompatActivity() {
         protocolExecutor.execute { highSpeedAssembler.reset() }
         highSpeedSessionActive = false
         highFrameCount = 0
+        protocolBatchCount.set(0)
         highUniqueFrameCount = 0
         highDuplicateCount = 0
         highProtocolErrors = 0
@@ -910,6 +916,7 @@ class MainActivity : AppCompatActivity() {
         resetSpeed()
         decodedQrCount.set(0)
         highFrameCount = 0
+        protocolBatchCount.set(0)
         highUniqueFrameCount = 0
         highDuplicateCount = 0
         highProtocolErrors = 0
@@ -1008,7 +1015,7 @@ class MainActivity : AppCompatActivity() {
             "曝光：点测 $aeMeterCount · 补偿 $lastEvIndex · 轻推 $aeNudgeCount",
             "ROI：${roiLabel(stats)} · 连续未命中 ${stats?.roiMisses ?: 0} · 布局 ${layoutLabel(stats)}",
             "码密度：${qrDensityLabel(lastHighFrameBytes)}",
-            "协议：二维码 ${decodedQrCount.get()} · AFL2 ${highFrameCount} · 唯一 ${highUniqueFrameCount} · 重复 ${highDuplicateCount} · 无效 ${invalidFrameCount.get()} · 错误 ${highProtocolErrors} · 队列 ${pendingProtocolFrames.get()} · 解块 ${lastHighSolved}/${lastHighTotal}",
+            "协议：二维码 ${decodedQrCount.get()} · AFL2 ${highFrameCount} · 批次 ${protocolBatchCount.get()} · 唯一 ${highUniqueFrameCount} · 重复 ${highDuplicateCount} · 无效 ${invalidFrameCount.get()} · 错误 ${highProtocolErrors} · 队列 ${pendingProtocolFrames.get()} · 解块 ${lastHighSolved}/${lastHighTotal}",
             "高速会话：总耗时 $sessionElapsed · 最近帧 $highAge · 唯一载荷 ${formatBytes(sessionUniquePayloadBytes)} · 光学 ${formatBytes(highBytesReceived)} · 速度 ${latestSpeedLabel} · 会话 ${formatRate(sessionAverageBytesPerSecond)}"
         )
         if (stats?.dualLayout == true) {
