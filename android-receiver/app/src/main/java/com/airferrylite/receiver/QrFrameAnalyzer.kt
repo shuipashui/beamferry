@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicLongArray
+import java.util.concurrent.atomic.AtomicIntegerArray
 import java.util.concurrent.atomic.AtomicReference
 
 data class DecodedQr(val bytes: ByteArray?, val text: String?)
@@ -54,6 +55,7 @@ data class ScanStats(
     val quadFrameCounts: List<Long> = List(5) { 0L },
     val quadSlotHits: List<Long> = List(4) { 0L },
     val quadRecoveryScans: Long = 0,
+    val quadSlotRecoveryScans: Long = 0,
     val quadStableCacheAvailable: Boolean = false
 )
 
@@ -111,6 +113,8 @@ class QrFrameAnalyzer(
     private val quadSlotHits = AtomicLongArray(4)
     private val quadRecoveryTick = AtomicInteger(0)
     private val quadRecoveryScans = AtomicLong(0)
+    private val quadSlotRecoveryScans = AtomicLong(0)
+    private val quadSlotMissStreak = AtomicIntegerArray(4)
     private val bootstrapRetryTick = AtomicInteger(0)
     private val bootstrapRetryScans = AtomicLong(0)
 
@@ -251,8 +255,10 @@ class QrFrameAnalyzer(
         stableQuadTiles.set(null)
         for (index in 0 until 5) quadFrameCounts.set(index, 0)
         for (index in 0 until 4) quadSlotHits.set(index, 0)
+        for (index in 0 until 4) quadSlotMissStreak.set(index, 0)
         quadRecoveryTick.set(0)
         quadRecoveryScans.set(0)
+        quadSlotRecoveryScans.set(0)
     }
 
     private fun chooseRegion(width: Int, height: Int): ScanRegion {
@@ -343,7 +349,8 @@ class QrFrameAnalyzer(
                     scanCrops,
                     retryBinarizer = false,
                     maxSymbols = if (lockedDual) 2 else 1,
-                    trackDualSlots = lockedDual
+                    trackDualSlots = lockedDual,
+                    recoverQuadSlots = lockedQuad && quadFullRefresh60.get()
                 )
             )
         }
@@ -445,7 +452,8 @@ class QrFrameAnalyzer(
         crops: List<ScanRegion>,
         retryBinarizer: Boolean,
         maxSymbols: Int = 1,
-        trackDualSlots: Boolean = false
+        trackDualSlots: Boolean = false,
+        recoverQuadSlots: Boolean = false
     ): List<NativeHit> {
         if (crops.isEmpty()) return emptyList()
         val symbols = maxSymbols.coerceIn(1, 4)
@@ -455,7 +463,17 @@ class QrFrameAnalyzer(
         return try {
             jobs.mapIndexed { index, crop ->
                 tileExecutor.submit(Callable {
-                    tileDecoders[index].read(luma, crop, symbols, retryBinarizer).also { hits ->
+                    var hits = tileDecoders[index].read(luma, crop, symbols, retryBinarizer)
+                    if (recoverQuadSlots) {
+                        if (hits.isNotEmpty()) quadSlotMissStreak.set(index, 0)
+                        else if (quadSlotMissStreak.incrementAndGet(index) >= QUAD_SLOT_RECOVERY_MISSES) {
+                            quadSlotMissStreak.set(index, 0)
+                            quadSlotRecoveryScans.incrementAndGet()
+                            hits = tileDecoders[index].read(luma, crop, 1, retryBinarizer = true)
+                            if (hits.isNotEmpty()) quadSlotMissStreak.set(index, 0)
+                        }
+                    }
+                    hits.also {
                         if (trackDualSlots && hits.any { hit ->
                                 QrPayload.isTransfer(QrPayload.bytesFrom(hit.bytes, hit.text))
                             }) {
@@ -756,6 +774,7 @@ class QrFrameAnalyzer(
                 quadFrameCounts = List(5) { quadFrameCounts.get(it) },
                 quadSlotHits = List(4) { quadSlotHits.get(it) },
                 quadRecoveryScans = quadRecoveryScans.get(),
+                quadSlotRecoveryScans = quadSlotRecoveryScans.get(),
                 quadStableCacheAvailable = (stableQuadTiles.get()?.size ?: 0) >= 4
             )
         )
@@ -793,6 +812,7 @@ class QrFrameAnalyzer(
         private const val TILE_UNDERCOUNT_LIMIT = 3
         private const val DUAL_RECOVERY_INTERVAL = 8
         private const val QUAD_RECOVERY_INTERVAL = 12
+        private const val QUAD_SLOT_RECOVERY_MISSES = 4
         private const val BOOTSTRAP_RETRY_INTERVAL = 8
         private const val STABLE_CACHE_MISS_LIMIT = 3
     }

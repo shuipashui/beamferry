@@ -2860,6 +2860,7 @@ var qrcode = function() {
           const hz = snapRefreshHz(1000 / avg);
           const next = vsyncsForFps(hz, Number(fps.value));
           if (hz !== measuredRefreshHz || next !== vsyncsPerQr) {
+            if (usesFractionalCadence()) fractionalVsyncCredit = 0;
             measuredRefreshHz = hz;
             vsyncsPerQr = next;
             statusText.textContent = playbackStatus();

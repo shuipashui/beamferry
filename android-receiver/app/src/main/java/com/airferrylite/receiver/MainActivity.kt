@@ -114,7 +114,7 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var latestSpeedLabel = "实时 — · 平均 —"
     @Volatile private var highSpeedSessionActive = false
     private var requestedFps = 60
-    private var requestedAnalysisHeight = 1440
+    private var requestedAnalysisHeight = 1080
     private var fullDiagnostics = ""
     private var pendingSave: PendingSave? = null
     private var pendingSession: String? = null
@@ -207,7 +207,7 @@ class MainActivity : AppCompatActivity() {
         startReceiveButton = findViewById(R.id.startReceiveButton)
         fpsGroup = findViewById(R.id.fpsGroup)
         resolutionGroup = findViewById(R.id.resolutionGroup)
-        requestedAnalysisHeight = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getInt(PREF_ANALYSIS_HEIGHT, 1440).let { if (it == 1080) 1080 else 1440 }
+        requestedAnalysisHeight = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getInt(PREF_ANALYSIS_HEIGHT, 1080).let { if (it == 1440) 1440 else 1080 }
         resolutionGroup.check(if (requestedAnalysisHeight == 1080) R.id.resolution1080 else R.id.resolution1440)
         resolutionGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (!isChecked) return@addOnButtonCheckedListener
@@ -1030,7 +1030,7 @@ class MainActivity : AppCompatActivity() {
             val slotHits = stats.quadSlotHits.joinToString("/")
             val phaseBefore = quadPhaseRecovery.beforeQrPerFrame?.let { String.format("%.2f", it) } ?: "—"
             val phaseAfter = quadPhaseRecovery.afterQrPerFrame?.let { String.format("%.2f", it) } ?: "—"
-            lines.add(5, "四码 60：帧 0/1/2/3/4=$frameCounts · 补扫 ${stats.quadRecoveryScans} · 重新定相 ${quadPhaseRecovery.attempts}/1 · 前/后 $phaseBefore/$phaseAfter QR/帧")
+            lines.add(5, "四码 60：帧 0/1/2/3/4=$frameCounts · 补扫 ${stats.quadRecoveryScans} · 单格加强 ${stats.quadSlotRecoveryScans} · 重新定相 ${quadPhaseRecovery.attempts}/1 · 前/后 $phaseBefore/$phaseAfter QR/帧")
             lines.add(6, "四码格位：左上/右上/左下/右下=$slotHits · 稳定缓存 ${if (stats.quadStableCacheAvailable) "有" else "无"}")
         }
         if (invalidFrameCount.get() > 0) lines.add("无效样本：$invalidFrameSample")
