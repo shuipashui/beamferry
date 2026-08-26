@@ -1,5 +1,5 @@
 (() => {
-  const RECEIVER_BUILD = "v90";
+  const RECEIVER_BUILD = "v91";
   if ("serviceWorker" in navigator) {
     Promise.resolve(navigator.serviceWorker.register("sw.js?v=" + RECEIVER_BUILD)).then(reg => {
       reg?.update?.()?.catch?.(() => {});
@@ -59,7 +59,9 @@
   const HIGH_TRACK_SIZE = 960;
   const HIGH_TILE_SIZE = 720;
   const HIGH_QUAD_TILE_SIZE = 720;
-  const HIGH_QUAD_PACKED_SIZE = IS_ANDROID ? 680 : 720;
+  // Three capable Android workers leave enough decode headroom at 30 FPS to
+  // retain the extra module detail needed by dense V33 quad codes.
+  const HIGH_QUAD_PACKED_SIZE = HIGH_SPEED_WORKERS >= 3 ? 720 : (IS_ANDROID ? 680 : 720);
   const HIGH_FULL_SCAN_EVERY_MISSES = 12;
   const HIGH_ROI_MISS_LIMIT = 8;
   const HIGH_CLOSE_BOX_RATIO = 0.5;

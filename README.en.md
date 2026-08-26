@@ -20,7 +20,7 @@ BeamFerry transfers a file from a computer screen to a phone camera as a live QR
 
 The web receiver requires HTTPS or `localhost` for camera access. Android 10 or later is required for the native receiver.
 
-Current release baseline: Android `0.8.135-quad-stall-classifier` (`versionCode 148`) and web receiver `v90`.
+Current release baseline: Android `0.8.135-quad-stall-classifier` (`versionCode 148`) and web receiver `v91`.
 
 ## Features
 
@@ -85,7 +85,7 @@ AFL2 uses a compact 20-byte binary header followed by a fountain-code block. Sys
 
 ### Web
 
-The browser receiver uses the latest available video frames and bounded worker concurrency; it does not build an unbounded decode queue. Single-code mode tracks one tight ROI. Four-code mode calibrates four physical slots independently and freezes only slots confirmed by real QR hits. `v90` warms decoder workers in parallel and permits up to three distinct camera frames in the bounded four-code pipeline. It reserves a worker before bitmap capture while keeping the legacy Canvas fallback serialized. Android devices use three decoder workers when at least six hardware threads and 4 GB of reported memory are available, otherwise they retain two; the Android four-code atlas is capped at 680 pixels to reduce WASM pixel work.
+The browser receiver uses the latest available video frames and bounded worker concurrency; it does not build an unbounded decode queue. Single-code mode tracks one tight ROI. Four-code mode calibrates four physical slots independently and freezes only slots confirmed by real QR hits. `v91` warms decoder workers in parallel and permits up to three distinct camera frames in the bounded four-code pipeline. It reserves a worker before bitmap capture while keeping the legacy Canvas fallback serialized. Android devices use three decoder workers when at least six hardware threads and 4 GB of reported memory are available and retain a 720-pixel quad atlas for dense-code sampling; lower-tier Android devices retain two workers and a 680-pixel atlas.
 
 The browser build limits a transfer to 64 MiB. Refreshing or closing the page discards an active AFL2 reconstruction.
 
