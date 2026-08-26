@@ -4,4 +4,9 @@
     <color name="af_accent">#5EF0AD</color>
     <color name="af_text">#EDF9F4</color>
     <color name="af_muted">#93B4A8</color>
+    <color name="af_control">#14241F</color>
+    <color name="af_control_border">#587168</color>
+    <color name="af_control_text">#D8E8E2</color>
+    <color name="af_control_checked">#5EF0AD</color>
+    <color name="af_control_checked_text">#062218</color>
 </resources>

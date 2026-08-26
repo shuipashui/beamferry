@@ -8,73 +8,60 @@
     android:background="@color/af_bg"
     android:padding="8dp">
 
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="2dp"
+        android:paddingTop="2dp"
+        android:paddingBottom="6dp"
+        android:text="BeamFerry"
+        android:textColor="@color/af_text"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center_vertical"
+        android:baselineAligned="false"
         android:orientation="horizontal">
-        <TextView
+
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="BeamFerry"
-            android:textColor="@color/af_text"
-            android:textSize="18sp"
-            android:textStyle="bold" />
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingEnd="4dp"
-            android:text="相机"
-            android:textColor="@color/af_muted"
-            android:textSize="11sp" />
-        <com.google.android.material.button.MaterialButtonToggleGroup
+            android:layout_marginEnd="6dp"
+            android:layout_weight="3"
+            android:orientation="vertical">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="2dp" android:layout_marginBottom="3dp" android:text="相机帧率" android:textColor="@color/af_muted" android:textSize="11sp" />
+            <com.google.android.material.button.MaterialButtonToggleGroup
             android:id="@+id/fpsGroup"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:selectionRequired="true"
             app:singleSelection="true">
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/fps30"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:minWidth="40dp"
-                android:text="30"
-                android:textSize="11sp" />
-            <Button
+                style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:insetTop="0dp" android:insetBottom="0dp" android:minWidth="0dp" android:paddingStart="0dp" android:paddingEnd="0dp" android:text="30" android:textColor="@color/af_segment_text" android:textSize="12sp" app:backgroundTint="@color/af_segment_background" app:strokeColor="@color/af_segment_stroke" />
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/fps60"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:minWidth="40dp"
-                android:text="60"
-                android:textSize="11sp" />
-            <Button
+                style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:insetTop="0dp" android:insetBottom="0dp" android:minWidth="0dp" android:paddingStart="0dp" android:paddingEnd="0dp" android:text="60" android:textColor="@color/af_segment_text" android:textSize="12sp" app:backgroundTint="@color/af_segment_background" app:strokeColor="@color/af_segment_stroke" />
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/fps120"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:minWidth="40dp"
-                android:text="120"
-                android:textSize="11sp" />
-        </com.google.android.material.button.MaterialButtonToggleGroup>
-        <com.google.android.material.button.MaterialButtonToggleGroup
+                style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:insetTop="0dp" android:insetBottom="0dp" android:minWidth="0dp" android:paddingStart="0dp" android:paddingEnd="0dp" android:text="120" android:textColor="@color/af_segment_text" android:textSize="12sp" app:backgroundTint="@color/af_segment_background" app:strokeColor="@color/af_segment_stroke" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="2" android:orientation="vertical">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="2dp" android:layout_marginBottom="3dp" android:text="分析流" android:textColor="@color/af_muted" android:textSize="11sp" />
+            <com.google.android.material.button.MaterialButtonToggleGroup
             android:id="@+id/resolutionGroup"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
             app:selectionRequired="true"
             app:singleSelection="true">
-            <Button android:id="@+id/resolution1080" style="?attr/materialButtonOutlinedStyle" android:layout_width="wrap_content" android:layout_height="32dp" android:minWidth="48dp" android:insetTop="0dp" android:insetBottom="0dp" android:text="1080" android:textSize="10sp" />
-            <Button android:id="@+id/resolution1440" style="?attr/materialButtonOutlinedStyle" android:layout_width="wrap_content" android:layout_height="32dp" android:minWidth="48dp" android:insetTop="0dp" android:insetBottom="0dp" android:text="1440" android:textSize="10sp" />
-        </com.google.android.material.button.MaterialButtonToggleGroup>
+            <com.google.android.material.button.MaterialButton android:id="@+id/resolution1080" style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:insetTop="0dp" android:insetBottom="0dp" android:minWidth="0dp" android:paddingStart="0dp" android:paddingEnd="0dp" android:text="1080p" android:textColor="@color/af_segment_text" android:textSize="11sp" app:backgroundTint="@color/af_segment_background" app:strokeColor="@color/af_segment_stroke" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/resolution1440" style="?attr/materialButtonOutlinedStyle" android:layout_width="0dp" android:layout_height="38dp" android:layout_weight="1" android:insetTop="0dp" android:insetBottom="0dp" android:minWidth="0dp" android:paddingStart="0dp" android:paddingEnd="0dp" android:text="1440p" android:textColor="@color/af_segment_text" android:textSize="11sp" app:backgroundTint="@color/af_segment_background" app:strokeColor="@color/af_segment_stroke" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
+        </LinearLayout>
     </LinearLayout>
 
     <TextView
