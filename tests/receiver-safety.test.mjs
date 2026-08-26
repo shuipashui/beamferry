@@ -4,6 +4,12 @@ import vm from "node:vm";
 
 const source = await fs.readFile(new URL("../app.js", import.meta.url), "utf8");
 const indexHtml = await fs.readFile(new URL("../index.html", import.meta.url), "utf8");
+const robots = await fs.readFile(new URL("../robots.txt", import.meta.url), "utf8");
+const sitemap = await fs.readFile(new URL("../sitemap.xml", import.meta.url), "utf8");
+assert.ok(indexHtml.includes('rel="canonical"') && indexHtml.includes('application/ld+json'), "receiver page must expose canonical and structured search metadata");
+assert.ok(indexHtml.includes('property="og:title"') && indexHtml.includes('name="description"'), "receiver page must expose share and search descriptions");
+assert.ok(robots.includes("Sitemap: https://shuipashui.github.io/beamferry/sitemap.xml"), "robots.txt must advertise the sitemap");
+assert.ok(sitemap.includes("beamferry-sender.html") && sitemap.includes("https://shuipashui.github.io/beamferry/"), "sitemap must list receiver and sender entrypoints");
 assert.ok(indexHtml.includes('id="openSender"') && indexHtml.includes("sender/dist/beamferry-sender.html"), "receiver must link to the sender");
 const serviceWorker = await fs.readFile(new URL("../sw.js", import.meta.url), "utf8");
 const mirrorSource = await fs.readFile(new URL("../web-receiver/app.js", import.meta.url), "utf8");

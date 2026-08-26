@@ -1,1 +1,1 @@
-{"name":"AirFerry Lite Receiver","short_name":"AF Receiver","start_url":"./","display":"standalone","background_color":"#07110f","theme_color":"#07110f","icons":[]}
+{"name":"BeamFerry QR File Receiver","short_name":"BeamFerry","description":"Offline file transfer over animated QR codes","start_url":"./","scope":"./","display":"standalone","background_color":"#07110f","theme_color":"#07110f","lang":"zh-CN","icons":[]}
