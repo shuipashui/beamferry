@@ -1,5 +1,5 @@
 (() => {
-  const RECEIVER_BUILD = "v88";
+  const RECEIVER_BUILD = "v89";
   if ("serviceWorker" in navigator) {
     Promise.resolve(navigator.serviceWorker.register("sw.js?v=" + RECEIVER_BUILD)).then(reg => {
       reg?.update?.()?.catch?.(() => {});
@@ -67,8 +67,8 @@
   const HIGH_QUAD_TILE_MISS_LIMIT = 6;
   const HIGH_QUAD_FROZEN_MISS_LIMIT = 24;
   const HIGH_SINGLE_INFLIGHT = 4;
-  const HIGH_QUAD_INFLIGHT = 2;
-  const HIGH_QUAD_GRAB_MS = 33;
+  const HIGH_QUAD_INFLIGHT = 3;
+  const HIGH_QUAD_GRAB_MS = 12;
 
   let stream = null;
   let scanTimer = 0;
@@ -97,7 +97,7 @@
   let sessionStartedAt = 0;
   let sessionUniqueBytes = 0;
   let sessionAverageBps = 0;
-  const rollingRates = [0, 0, 0];
+  const rollingRates = [0, 0, 0, 0, 0];
   let rollingCount = 0;
   let rollingIndex = 0;
   let latestSpeedLabel = "实时 — · 平均 —";
@@ -163,6 +163,7 @@
   let lastUsedLuma = false;
   let lumaUnavailable = false;
   let highGrabInFlight = false;
+  let highQuadJobsInFlight = 0;
   let lastQuadGrabAt = 0;
   let lastNativeLocate = 0;
   let highTileProven = [false, false, false, false];
@@ -466,6 +467,7 @@
     lastScanStartedAt = -Infinity;
     highBitmapLock = false;
     highGrabInFlight = false;
+    highQuadJobsInFlight = 0;
     highLocateLock = false;
     highLocateTick = 0;
     lastNativeLocate = 0;
@@ -567,7 +569,7 @@
   function startHighSpeedWorkers() {
     if (highWorkersDisabled || highWorkers.length) return;
     try {
-      startHighSpeedWorker(0);
+      for (let index = 0; index < HIGH_SPEED_WORKERS; index += 1) startHighSpeedWorker(index);
       watchWorkerBoot();
     } catch (_) {
       disableHighSpeedWorkers();
@@ -660,6 +662,7 @@
     }
     highDecodeMeta.clear();
     highGrabInFlight = false;
+    highQuadJobsInFlight = 0;
   }
 
   function recoverStuckHighSpeedWorkers() {
@@ -1500,17 +1503,22 @@
   async function scanQuadCrops(crops, retryBinarizer) {
     const slots = idleHighWorkerSlots();
     if (!slots.length) return [];
+    const slot = slots[0];
+    highWorkerBusy[slot] = true;
+    highWorkerStartedAt[slot] = performance.now();
     const region = unionScanCrops(crops);
     try {
       const grabbed = await grabQuadPackedBitmap(region);
       if (!grabbed || !stream) {
         try { grabbed?.bitmap.close(); } catch (_) {}
+        highWorkerBusy[slot] = false;
+        highWorkerStartedAt[slot] = 0;
         return [];
       }
       const locked = (highTrackedTiles || []).filter(Boolean).length >= 2;
       const tiles = locked ? mapCropsToPacked(crops, grabbed) : [];
       const pending = postBitmapToWorker(
-        slots[0],
+        slot,
         grabbed.bitmap,
         grabbed.source,
         grabbed.width,
@@ -1519,42 +1527,48 @@
         tiles.length >= 2 ? 1 : 4,
         tiles
       );
-      highGrabInFlight = false;
       return pending;
     } catch (_) {
       lastQuadTiles = 0;
-      const packed = await grabPackedRegion(region);
-      if (!packed || !stream) return [];
+      if (highGrabInFlight) {
+        highWorkerBusy[slot] = false;
+        highWorkerStartedAt[slot] = 0;
+        return [];
+      }
+      highGrabInFlight = true;
+      const packed = await grabPackedRegion(region).finally(() => {
+        highGrabInFlight = false;
+      });
+      if (!packed || !stream) {
+        highWorkerBusy[slot] = false;
+        highWorkerStartedAt[slot] = 0;
+        return [];
+      }
       const sized = downscaleLuma(packed.lum, packed.width, packed.height, HIGH_QUAD_PACKED_SIZE);
       const pending = postLumaToWorker(
-        slots[0],
+        slot,
         sized,
         { x: packed.x, y: packed.y, width: packed.regionW, height: packed.regionH },
         4,
         retryBinarizer
       );
-      highGrabInFlight = false;
       return pending;
     }
   }
 
   function decodeQuadFrame() {
-    if (highGrabInFlight) {
+    if (highQuadJobsInFlight >= HIGH_QUAD_INFLIGHT) {
       workerBusyDrops += 1;
-      return;
-    }
-    if (highWorkerBusy.filter(Boolean).length >= HIGH_QUAD_INFLIGHT) {
-      workerBusyDrops += 1;
-      return;
+      return false;
     }
     const now = performance.now();
-    if (lastQuadGrabAt && now - lastQuadGrabAt < HIGH_QUAD_GRAB_MS) return;
+    if (lastQuadGrabAt && now - lastQuadGrabAt < HIGH_QUAD_GRAB_MS) return false;
     const slots = idleHighWorkerSlots();
     if (!slots.length) {
       workerBusyDrops += 1;
-      return;
+      return false;
     }
-    highGrabInFlight = true;
+    highQuadJobsInFlight += 1;
     lastQuadGrabAt = now;
     void (async () => {
       try {
@@ -1563,9 +1577,10 @@
         const hits = await scanQuadCrops(crops, false);
         rememberQuadHits(hits);
       } finally {
-        highGrabInFlight = false;
+        highQuadJobsInFlight = Math.max(0, highQuadJobsInFlight - 1);
       }
     })();
+    return true;
   }
 
   function scanQuadFromLuma() {
@@ -2021,6 +2036,7 @@
     lastPostedScanSize = 0;
     highBitmapLock = false;
     highGrabInFlight = false;
+    highQuadJobsInFlight = 0;
     highLocateLock = false;
     highLocateTick = 0;
     highQuadCursor = 0;
@@ -2500,9 +2516,9 @@
     sessionUniqueBytes += byteCount;
     speedWindowBytes += byteCount;
     const elapsed = now - speedWindowStartedAt;
-    if (elapsed < 1000) return;
+    if (elapsed < 1200) return;
     const sample = speedWindowBytes / (elapsed / 1000);
-    speedBps = sample;
+    speedBps = speedBps ? speedBps * 0.6 + sample * 0.4 : sample;
     rollingRates[rollingIndex] = sample;
     rollingIndex = (rollingIndex + 1) % rollingRates.length;
     rollingCount = Math.min(rollingRates.length, rollingCount + 1);
@@ -2581,11 +2597,13 @@
         (highMultiLayout ? " · 校准 " + highTileProven.filter(Boolean).length + "/4" : "") +
         (highMultiLayout && lastQuadTiles >= 2 ? " · 切格" : "") + perFrameLabel(),
       "调度：Worker 就绪 " + highWorkerReady.filter(Boolean).length + "/" + workerCount +
+        " · 帧任务 " + highQuadJobsInFlight + "/" + HIGH_QUAD_INFLIGHT +
         " · 忙时丢弃 " + workerBusyDrops + " · 重启 " + workerRestarts + " · 错误 " + workerErrors +
         " · 连续未识别 " + highScanMisses,
       "协议：识别 " + highFramesSeen + " · 唯一 " + highUniqueFrames + " · 重复 " + highDuplicateFrames +
         " · 拒绝双码 " + unsupportedDualFrames + " · 无效 " + highInvalidFrames + " · 序列跳跃 " + highSequenceGaps +
-        " · 解块 " + (highDecoder?.solvedCount || 0) + "/" + (highDecoder?.k || 0),
+        " · 解块 " + (highDecoder?.solvedCount || 0) + "/" + (highDecoder?.k || 0) +
+        " · 尾部消元 " + (highDecoder?.denseAttempts || 0) + "/" + (highDecoder?.denseSolved || 0),
       "高速会话：最近帧 " + (highLastFrameAt ? Math.max(0, Math.round(performance.now() - highLastFrameAt)) + " ms" : "—") +
         " · 有效载荷 " + formatBytes(highProtocolBytes) + " · 速度 " + latestSpeedLabel +
         " · 会话 " + formatRate(sessionAverageBps) + " · 流 " + (highHeader ? H.streamIdentity(highHeader) : "—"),

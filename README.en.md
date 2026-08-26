@@ -20,7 +20,7 @@ BeamFerry transfers a file from a computer screen to a phone camera as a live QR
 
 The web receiver requires HTTPS or `localhost` for camera access. Android 10 or later is required for the native receiver.
 
-Current release baseline: Android `0.8.135-quad-stall-classifier` (`versionCode 148`) and web receiver `v88`.
+Current release baseline: Android `0.8.135-quad-stall-classifier` (`versionCode 148`) and web receiver `v89`.
 
 ## Features
 
@@ -85,7 +85,7 @@ AFL2 uses a compact 20-byte binary header followed by a fountain-code block. Sys
 
 ### Web
 
-The browser receiver uses the latest available video frames and bounded worker concurrency; it does not build an unbounded decode queue. Single-code mode tracks one tight ROI. Four-code mode calibrates four physical slots independently and freezes only slots confirmed by real QR hits.
+The browser receiver uses the latest available video frames and bounded worker concurrency; it does not build an unbounded decode queue. Single-code mode tracks one tight ROI. Four-code mode calibrates four physical slots independently and freezes only slots confirmed by real QR hits. `v89` warms decoder workers in parallel and permits up to three distinct camera frames in the bounded four-code pipeline. It reserves a worker before bitmap capture while keeping the legacy Canvas fallback serialized.
 
 The browser build limits a transfer to 64 MiB. Refreshing or closing the page discards an active AFL2 reconstruction.
 
