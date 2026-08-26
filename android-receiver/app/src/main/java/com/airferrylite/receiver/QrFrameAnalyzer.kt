@@ -56,7 +56,8 @@ data class ScanStats(
     val quadSlotHits: List<Long> = List(4) { 0L },
     val quadRecoveryScans: Long = 0,
     val quadSlotRecoveryScans: Long = 0,
-    val quadStableCacheAvailable: Boolean = false
+    val quadStableCacheAvailable: Boolean = false,
+    val quadCalibratedSlots: Int = 0
 )
 
 /** Latest-frame zxing-cpp scan on the CameraX analyzer thread. */
@@ -110,6 +111,7 @@ class QrFrameAnalyzer(
     private val stableDualTiles = AtomicReference<List<ScanRegion>?>(null)
     private val stableDualCacheMisses = AtomicInteger(0)
     private val stableQuadTiles = AtomicReference<List<ScanRegion>?>(null)
+    private val quadCalibratedMask = AtomicInteger(0)
     private val quadFrameCounts = AtomicLongArray(5)
     private val quadSlotHits = AtomicLongArray(4)
     private val quadRecoveryTick = AtomicInteger(0)
@@ -254,6 +256,7 @@ class QrFrameAnalyzer(
         stableDualTiles.set(null)
         stableDualCacheMisses.set(0)
         stableQuadTiles.set(null)
+        quadCalibratedMask.set(0)
         for (index in 0 until 5) quadFrameCounts.set(index, 0)
         for (index in 0 until 4) quadSlotHits.set(index, 0)
         for (index in 0 until 4) quadSlotMissStreak.set(index, 0)
@@ -678,12 +681,42 @@ class QrFrameAnalyzer(
                 // Once all four slots are established, sparse hits must not drag the
                 // crop grid toward the currently visible side and starve other slots.
                 val next = if (quadFullRefresh60.get() && stable != null) {
-                    stable
+                    val calibrated = quadCalibratedMask.get()
+                    if (calibrated == 0x0f) {
+                        stable
+                    } else {
+                        val followed = ScanLayout.followContainedHits(base, perCode, imageWidth, imageHeight)
+                        var nextMask = calibrated
+                        for (pointsForCode in perCode) {
+                            if (pointsForCode.isEmpty()) continue
+                            val cx = pointsForCode.map { it.first }.average().toFloat()
+                            val cy = pointsForCode.map { it.second }.average().toFloat()
+                            val owner = ScanLayout.ownerIndex(base, cx, cy)
+                            if (owner in 0..3) nextMask = nextMask or (1 shl owner)
+                        }
+                        quadCalibratedMask.set(nextMask)
+                        List(4) { index ->
+                            if ((calibrated and (1 shl index)) != 0) stable[index] else followed[index]
+                        }
+                    }
                 } else {
                     ScanLayout.followContainedHits(base, perCode, imageWidth, imageHeight)
                 }
                 trackedTiles.set(next)
-                if (quadFullRefresh60.get() && stable == null && next.size >= 4) stableQuadTiles.set(next)
+                if (quadFullRefresh60.get() && next.size >= 4) {
+                    stableQuadTiles.set(next)
+                    if (stable == null) {
+                        var mask = 0
+                        for (pointsForCode in perCode) {
+                            if (pointsForCode.isEmpty()) continue
+                            val cx = pointsForCode.map { it.first }.average().toFloat()
+                            val cy = pointsForCode.map { it.second }.average().toFloat()
+                            val owner = ScanLayout.ownerIndex(next, cx, cy)
+                            if (owner in 0..3) mask = mask or (1 shl owner)
+                        }
+                        quadCalibratedMask.set(mask)
+                    }
+                }
             }
             dualStream.get() -> {
                 tileUndercount.set(0)
@@ -785,7 +818,8 @@ class QrFrameAnalyzer(
                 quadSlotHits = List(4) { quadSlotHits.get(it) },
                 quadRecoveryScans = quadRecoveryScans.get(),
                 quadSlotRecoveryScans = quadSlotRecoveryScans.get(),
-                quadStableCacheAvailable = (stableQuadTiles.get()?.size ?: 0) >= 4
+                quadStableCacheAvailable = (stableQuadTiles.get()?.size ?: 0) >= 4,
+                quadCalibratedSlots = Integer.bitCount(quadCalibratedMask.get() and 0x0f)
             )
         )
     }

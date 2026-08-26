@@ -1040,7 +1040,7 @@ class MainActivity : AppCompatActivity() {
             val phaseBefore = quadPhaseRecovery.beforeQrPerFrame?.let { String.format("%.2f", it) } ?: "—"
             val phaseAfter = quadPhaseRecovery.afterQrPerFrame?.let { String.format("%.2f", it) } ?: "—"
             lines.add(5, "四码高速：帧 0/1/2/3/4=$frameCounts · 补扫 ${stats.quadRecoveryScans} · 单格加强 ${stats.quadSlotRecoveryScans} · 重新定相 ${quadPhaseRecovery.attempts}/3 · 前/后 $phaseBefore/$phaseAfter QR/帧")
-            lines.add(6, "四码格位：左上/右上/左下/右下=$slotHits · 稳定缓存 ${if (stats.quadStableCacheAvailable) "有" else "无"}")
+            lines.add(6, "四码格位：左上/右上/左下/右下=$slotHits · 格位校准 ${stats.quadCalibratedSlots}/4 · 稳定缓存 ${if (stats.quadStableCacheAvailable) "有" else "无"}")
         }
         if (invalidFrameCount.get() > 0) lines.add("无效样本：$invalidFrameSample")
         fullDiagnostics = lines.joinToString("\n")
