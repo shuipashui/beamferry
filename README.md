@@ -1,103 +1,143 @@
 # BeamFerry
 
-电脑浏览器把文件编成连续二维码，手机摄像头扫回来，不经过服务器。
+[![Web CI](https://github.com/shuipashui/beamferry/actions/workflows/web-ci.yml/badge.svg)](https://github.com/shuipashui/beamferry/actions/workflows/web-ci.yml)
+[![Android build](https://github.com/shuipashui/beamferry/actions/workflows/android-apk.yml/badge.svg)](https://github.com/shuipashui/beamferry/actions/workflows/android-apk.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-- 发送端：单文件 HTML，可直接打开，并显示手机接收页地址和二维码
-- 网页接收端：https://shuipashui.github.io/beamferry/
-- Android 接收端：原生应用，Android 10+
-- 当前传输为 AFL2（二进制帧 + 喷泉码）；旧 AFL1 发送端仍可接收
-- 文件只在发送电脑和接收手机本地处理
+BeamFerry transfers a file from a computer screen to a phone camera as a live QR-code stream. The file is encoded, displayed, scanned, reconstructed, and verified locally. No upload server or account is required.
 
-## 使用
+> BeamFerry is designed for short-range, offline optical transfer. Throughput depends on the display, camera, lighting, focus, and device decoder performance; advertised frame rates are not guaranteed transfer rates.
 
-- 发送端：https://shuipashui.github.io/beamferry/sender/dist/beamferry-sender.html
-- 网页接收端也可从发送页右侧的地址 / 二维码进入；开始播放文件码流后该入口会隐藏
+## Try It
 
-1. 在电脑打开发送端，选择文件。
-2. 首次打开默认四码 `2068 B · 30 FPS`；按需调整后点击「生成二维码流」。四码可窗口播放；全屏模块更大、更稳。
-3. 手机打开网页接收端或安装 APK，允许摄像头并开始扫描。APK 可在标题行切换相机 30/60/120（默认 60；达不到会回落）。
-4. 对准二维码保持稳定。网页收完后下载文件；APK 点「接收文件」才开相机，收完后关相机预览，再点保存或「继续接收」。诊断区可直接滚动查看。
+- [Open the sender](https://shuipashui.github.io/beamferry/sender/dist/beamferry-sender.html)
+- [Open the web receiver](https://shuipashui.github.io/beamferry/)
+- Android debug APKs are produced by the [Build Android receiver](https://github.com/shuipashui/beamferry/actions/workflows/android-apk.yml) workflow as the `beamferry-android-debug` artifact.
 
-网页接收端需要 HTTPS 才能打开摄像头。Chrome 若一直停在旧版，可清掉该站数据后再打开。
+The web receiver requires HTTPS or `localhost` for camera access. Android 10 or later is required for the native receiver.
 
-## 推荐参数
+## Features
 
-面向常见 60 Hz 电脑屏。发送端会按实测刷新率对齐播放。
+- Fully local file encoding and reconstruction
+- Single-code and 2x2 four-code layouts
+- Binary AFL2 frames with systematic LT fountain coding
+- Reception from any point in the repeating stream
+- Optional gzip compression when it reduces the transfer size
+- SHA-256 verification before exposing the recovered file
+- Browser receiver with Web Worker and ZXing WASM decoding
+- Native Android receiver using CameraX Y-plane analysis and zxing-cpp
+- Legacy AFL1 receive compatibility
+- Installable, self-contained HTML sender
 
-| 场景 | 参数 |
-|---|---|
-| 单码 | **2953 B · 30 FPS**（切换到单码时预填；也可改 2331 / 1465 B） |
-| 四码 | **2068 B · 30 FPS**（首次打开默认；V33，四码 2×2） |
-| 四码全刷实验 | **1465 B · 60 FPS** 起步；每个刷新周期更新全部四码，若唯一符号率下降则退回 30 FPS |
-| 双码 | **2068 B · 50 FPS**（60 Hz 屏使用 5/6 vsync 节拍；只有上排两枚） |
-| 较远或摩尔纹明显 | 单码 1465 B，或四码 1273 / 1003 B |
-| 不要用 | 单码 60/120 FPS；四码贴着屏幕拍；45 FPS（60 Hz 上等于 30） |
+The web receiver intentionally supports only single-code and four-code AFL2 streams. The Android receiver retains broader protocol compatibility.
 
-## 实测记录（2026-08-24）
+## Quick Start
 
-测试环境：Android 16、电脑屏幕 60 Hz、相机分析流约 60 FPS。
+1. Open the sender on the computer and choose a file.
+2. Start with the default `four-code / 2068 B / 30 FPS` profile.
+3. Open either receiver on the phone and grant camera access.
+4. Keep all displayed codes inside the camera preview. Full-screen playback usually gives the best module size and focus.
+5. Wait for verification, then save the recovered file.
 
-| 布局与参数 | 结果 | 结论 |
-|---|---|---|
-| 上排双码 · 2068 B · 50 FPS | 最佳 `1.92` 码/帧、约 **199 KB/s**；另一次受光学相位影响降至约 40–59 KB/s | 当前双码峰值最优，但启动稳定性仍受屏幕刷新、曝光和摩尔纹影响 |
-| 纵列双码 · 2068 B · 50 FPS | 约 `1.15` 码/帧、约 **118 KB/s** | 无稳定收益，方案已移除 |
-| 对角双码 | 多数只有单码命中，约 **119 KB/s** 或零速 | 无稳定收益，方案已移除 |
-| 四码 · 1465 B · 50 FPS | `2.32` 码/帧、约 **168 KB/s** | 与 30 FPS 接近；50 FPS 保留为实验档，不替代四码 30 FPS 推荐值 |
-| 四码 · 1732 / 1952 / 2068 B · 30 FPS | 3 MB 文件每档重复 5 次，1952 B 与 2068 B 多数接近各自理论上限，峰值约 **224 / 239 KB/s** | 作为当前高密度四码基准；2068 B 设为默认 |
+For a 60 Hz display, use these starting points:
 
-双码 50 FPS 在 60 Hz 屏上按每 6 个 vsync 更新 5 次，理论光学速度约 202 KB/s。接收端在上述测试中维持约 60 FPS、零丢帧、平均解码低于 9 ms；主要波动来自光学时序，而不是分析线程吞吐。
+| Layout | Recommended starting profile | Notes |
+| --- | --- | --- |
+| Four-code | `2068 B / 30 FPS` | Default and most stable high-throughput profile |
+| Single-code | `2953 B / 30 FPS` | Easier framing; reduce density if focus or moire is poor |
+| Four-code high FPS | `1465 B / 50 or 60 FPS` | Experimental; compare completed-session speed against 30 FPS |
 
-四码 60 FPS 现为独立实验档，每个发送更新周期生成并绘制四个新符号，理论源符号率为 240 symbols/s。四码默认值和原有 30 FPS 整屏更新路径保持不变；该实验档尚不作为稳定速度承诺。
-实验四码 60 使用新的 AFL2 节拍标记；Android 接收需要 `0.8.119-quad-phase-recovery` 或更高版本，`0.8.121` 增加四码光学参数实验和 `1920×1080` 分析流切换。旧 APK 仍可接收普通四码 30 FPS，但不会识别新的四码 60 实验帧。
+If decoding is intermittent, move farther from the display so the complete quiet zones remain visible, increase display brightness, avoid reflections, and reduce the bytes per code before increasing frame rate.
 
-## 限制
-
-- 单次文件上限 64 MiB。
-- 刷新网页或关掉应用会丢失当前 AFL2 进度，需要重新扫描。
-- 速度受屏幕亮度、摩尔纹、对焦、手机性能和反光影响。
-- 四码让四个码都进手机画面，不要贴太近。全屏模块更大；APK 窗口模式也可以收。
-- 测试四码高密度档时记录发送端显示的 QR Version、模块数、每模块设备像素和画布尺寸，并复制 APK 诊断用于对比命中率与吞吐。
-- gzip 传输需要接收端支持 `DecompressionStream`；当前 Android Chrome 和 Android 应用均支持。
-
-## 目录
+## How It Works
 
 ```text
-index.html / app.js / sw.js                 网页接收端（GitHub Pages 根目录）
-sender/dist/beamferry-sender.html           单文件发送端
-sender/                                     发送端源码
-android-receiver/                           Android 应用
-shared/                                     AFL1 / AFL2 协议
-protocol/SPEC.md                            线协议说明
-tests/                                      测试
+file
+  -> optional gzip container
+  -> systematic LT fountain symbols
+  -> binary AFL2 QR frames
+  -> display / camera optical channel
+  -> QR decoder
+  -> LT reconstruction
+  -> SHA-256 verification
+  -> recovered file
 ```
 
-## 本地构建
+AFL2 uses a compact 20-byte binary header followed by a fountain-code block. Systematic symbols are sent first, followed by repair symbols, so the receiver can recover from missed, duplicated, and out-of-order frames without requesting retransmission. See [protocol/SPEC.md](protocol/SPEC.md) for the wire format and compatibility rules.
 
-需要 Node.js 18+。
+## Receiver Notes
 
-```powershell
+### Web
+
+The browser receiver uses the latest available video frames and bounded worker concurrency; it does not build an unbounded decode queue. Single-code mode tracks one tight ROI. Four-code mode calibrates four physical slots independently and freezes only slots confirmed by real QR hits.
+
+The browser build limits a transfer to 64 MiB. Refreshing or closing the page discards an active AFL2 reconstruction.
+
+### Android
+
+The Android receiver analyzes the CameraX luminance plane directly and dispatches four-code crops to zxing-cpp decoders. The stable production profile remains four-code at 30 FPS. The 50/60 FPS full-refresh path is experimental and includes separate slot calibration and optical phase recovery; it does not alter the 30 FPS path.
+
+Use the in-app diagnostics when reporting performance. Include the payload size, sender FPS, camera resolution and FPS, QR/frame rate, four-slot hit counts, calibration count, unique/optical bytes, and completed-session speed.
+
+## Limitations
+
+- Maximum file size is 64 MiB in the current browser build.
+- This is a one-way optical channel; there is no receiver feedback to adapt sender timing.
+- High-density and high-FPS profiles can be slower when rolling shutter or display transitions reduce valid QR frames.
+- Compression depends on browser `CompressionStream` / `DecompressionStream` support and is skipped for formats that are already compressed.
+- Debug APK artifacts are unsigned development builds, not store releases.
+
+## Development
+
+Node.js 22 is used in CI. Install dependencies and run the complete web/protocol test suite:
+
+```bash
+npm ci
 npm test
-npm run build:sender
 npm run build
 ```
 
-`npm run build` 会生成协议 bundle、同步网页接收端镜像，再生成单文件发送端。
+Useful build targets:
 
-Android 调试包需要 Java 17 和 Android SDK Platform 35：
+| Command | Output |
+| --- | --- |
+| `npm run build:sender` | Rebuilds `sender/dist/beamferry-sender.html` |
+| `npm run build:receiver` | Rebuilds protocol/decoder assets and synchronizes `web-receiver/` |
+| `npm run build` | Builds both receiver and sender artifacts |
+
+The Android project requires Java 17 and Android SDK Platform 35:
 
 ```powershell
 cd android-receiver
 .\build-local.ps1 assembleDebug
 ```
 
-APK 输出为 `android-receiver/app/build/outputs/apk/debug/app-debug.apk`（仅本地自测）。**交付请只用 GitHub Actions** 工作流 `Build Android receiver` 的 artifact `beamferry-android-debug`；不要保留或分发仓库里的旧 APK。
+Local APK output is `android-receiver/app/build/outputs/apk/debug/app-debug.apk`. Distributable test artifacts should come from GitHub Actions so the build is reproducible.
 
-## 和 AirFerry / Decimen 的关系
+## Repository Layout
 
-本项目品牌为 BeamFerry，与上游 AirFerry 项目区分；协议兼容 AFL2/旧 AFL1。
+```text
+app.js, index.html, sw.js       GitHub Pages web receiver
+web-receiver/                   synchronized receiver mirror
+sender/                         sender source and single-file build
+android-receiver/               native Android receiver
+shared/                         AFL2 protocol and fountain-code implementation
+protocol/SPEC.md                AFL1/AFL2 wire-format documentation
+tests/                          protocol, FEC, receiver, and safety tests
+```
 
-当前发送 AFL2，参考 [decimen-optical-transfer](https://github.com/bashalarmistalt/decimen-optical-transfer) v0.3.0（MIT）：二进制 LT 喷泉码、固定掩码、发送端 lookahead。网页用 ZXing WASM 解码，Android 用 zxing-cpp。Decimen 后续 AGPL 版本的四码 / RaptorQ 没有纳入本项目。旧 AFL1 接收代码仍保留，用于读取旧发送端。
+## Security and Privacy
 
-## 许可证
+BeamFerry does not intentionally transmit file contents over the network. The sender reads the selected local file, and the receiver writes the reconstructed result only after integrity verification. When using the hosted pages, normal static site requests still reach GitHub Pages; deploy the repository yourself for an entirely self-controlled origin.
 
-MIT License。第三方说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+Treat QR streams as visible data. Anyone with a camera and line of sight may capture the transfer. BeamFerry provides integrity checking, not encryption or authentication; encrypt sensitive files before sending them.
+
+## Acknowledgements
+
+The AFL2 implementation is derived from ideas and MIT-licensed components in [decimen-optical-transfer](https://github.com/bashalarmistalt/decimen-optical-transfer) v0.3.0. The web receiver uses ZXing WASM, and the Android receiver uses zxing-cpp. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for licenses and attribution.
+
+BeamFerry is an independent project and is not affiliated with AirFerry.
+
+## License
+
+[MIT](LICENSE) (c) the BeamFerry contributors.
