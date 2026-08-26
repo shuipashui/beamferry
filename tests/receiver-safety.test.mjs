@@ -30,6 +30,8 @@ assert.ok(androidMain.includes("maybeRephaseDualCamera(stats)"), "Android 60 FPS
 assert.ok(androidMain.includes("maybeRephaseQuadCamera(stats)"), "experimental quad 60 FPS must escape sustained bad camera/display phase");
 assert.ok(androidMain.includes("stats.quadFullRefresh60"), "ordinary quad streams must not trigger quad 60 FPS rephasing");
 assert.ok(androidAnalyzer.includes("stableQuadTiles"), "experimental quad 60 FPS must preserve a stable four-tile cache");
+assert.ok(androidAnalyzer.includes("miss >= missLimit && !quadFullRefresh60.get()"), "high-FPS quad misses must not discard the locked four-tile grid");
+assert.ok(androidAnalyzer.includes("quadFullRefresh60.get() && stable != null"), "high-FPS quad sparse hits must not move an established grid");
 assert.ok(androidAnalyzer.includes("QUAD_RECOVERY_INTERVAL = 12"), "experimental quad recovery scans must be rate limited");
 assert.ok(androidAnalyzer.includes("val recoverNow = count == 0"), "experimental quad recovery must wait for complete misses");
 assert.ok(androidAnalyzer.includes("!quadFullRefresh60.get() ||"), "ordinary quad decoding must retain its original immediate recovery path");

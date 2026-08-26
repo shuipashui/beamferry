@@ -592,7 +592,7 @@ class QrFrameAnalyzer(
                 dualStream.get() || lockedTiles >= 2 -> 6
                 else -> 2
             }
-            if (miss >= missLimit) {
+            if (miss >= missLimit && !quadFullRefresh60.get()) {
                 trackedTiles.set(null)
                 tileUndercount.set(0)
             }
@@ -672,10 +672,18 @@ class QrFrameAnalyzer(
             quadStream.get() -> {
                 tileUndercount.set(0)
                 val grid = quadTileGrid(imageWidth, imageHeight)
-                val base = previous?.takeIf { it.size >= 4 } ?: grid
-                val next = ScanLayout.followContainedHits(base, perCode, imageWidth, imageHeight)
+                val stable = stableQuadTiles.get()?.takeIf { it.size >= 4 }
+                val base = stable ?: previous?.takeIf { it.size >= 4 } ?: grid
+                // High-FPS rolling-shutter frames often expose only one or two tiles.
+                // Once all four slots are established, sparse hits must not drag the
+                // crop grid toward the currently visible side and starve other slots.
+                val next = if (quadFullRefresh60.get() && stable != null) {
+                    stable
+                } else {
+                    ScanLayout.followContainedHits(base, perCode, imageWidth, imageHeight)
+                }
                 trackedTiles.set(next)
-                if (quadFullRefresh60.get() && next.size >= 4) stableQuadTiles.set(next)
+                if (quadFullRefresh60.get() && stable == null && next.size >= 4) stableQuadTiles.set(next)
             }
             dualStream.get() -> {
                 tileUndercount.set(0)
