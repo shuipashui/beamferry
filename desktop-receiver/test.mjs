@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const [app, html, serviceWorker, storage] = await Promise.all([
+const [app, html, serviceWorker, storage, desktopStyles] = await Promise.all([
   readFile(new URL("./app.js", import.meta.url), "utf8"),
   readFile(new URL("./index.html", import.meta.url), "utf8"),
   readFile(new URL("./sw.js", import.meta.url), "utf8"),
-  readFile(new URL("./receiver-storage.js", import.meta.url), "utf8")
+  readFile(new URL("./receiver-storage.js", import.meta.url), "utf8"),
+  readFile(new URL("./desktop-screen.css", import.meta.url), "utf8")
 ]);
 
 assert.match(app, /getDisplayMedia\s*\(/, "receiver must capture a screen source");
@@ -15,5 +16,8 @@ assert.match(html, /\.\.\/sender\/dist\/beamferry-sender\.html/, "sender link mu
 assert.match(serviceWorker, /beamferry-desktop-receiver-/, "cache namespace must be isolated");
 assert.match(serviceWorker, /!key\.startsWith\(CACHE_PREFIX\)/, "activation must preserve unrelated caches");
 assert.match(storage, /beamferry-desktop-receiver/, "IndexedDB namespace must be isolated");
+assert.match(html, /class="card missing-card"/, "desktop layout needs an explicit missing-data region");
+assert.match(desktopStyles, /grid-template-areas:/, "wide screens must use the desktop grid");
+assert.match(desktopStyles, /body\s*\{[^}]*overflow:\s*hidden/s, "desktop view should fit without page scrolling");
 
 console.log("desktop screen receiver isolation checks ok");

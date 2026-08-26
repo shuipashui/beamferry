@@ -4,11 +4,136 @@
 }
 
 @media (min-width: 900px) {
+  body {
+    height: 100vh;
+    overflow: hidden;
+  }
+
   .app {
-    max-width: 920px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(390px, 0.75fr);
+    grid-template-rows: auto auto auto 9px auto minmax(100px, 1fr) auto auto;
+    grid-template-areas:
+      "header header"
+      "camera actions"
+      "camera stats"
+      "camera progress"
+      "camera missing"
+      "camera diagnostics"
+      "camera result"
+      "note note";
+    gap: 10px 16px;
+    width: 100%;
+    max-width: 1600px;
+    height: 100vh;
+    padding: 14px 18px;
+    overflow: hidden;
+  }
+
+  header {
+    grid-area: header;
+    margin: 0;
   }
 
   .camera-card {
-    aspect-ratio: 16 / 9;
+    grid-area: camera;
+    min-width: 0;
+    min-height: 0;
+    aspect-ratio: auto;
+    align-self: stretch;
+  }
+
+  .actions {
+    grid-area: actions;
+    margin: 0;
+    flex-wrap: nowrap;
+  }
+
+  .actions > button {
+    padding-inline: 12px;
+    white-space: nowrap;
+  }
+
+  .fps-switch {
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .stats {
+    grid-area: stats;
+    grid-template-columns: 1fr 1fr;
+    margin: 0;
+    padding: 11px 13px;
+  }
+
+  .progress {
+    grid-area: progress;
+    margin: 0;
+    align-self: center;
+    width: 100%;
+  }
+
+  .missing-card {
+    grid-area: missing;
+    margin: 0;
+    padding: 11px 13px;
+  }
+
+  .missing-card code {
+    max-height: 52px;
+    overflow: auto;
+  }
+
+  .diagnostics {
+    grid-area: diagnostics;
+    min-height: 0;
+    margin: 0;
+    padding: 11px 13px;
+    overflow: hidden;
+  }
+
+  .diagnostics pre {
+    max-height: calc(100% - 32px) !important;
+    overflow: auto;
+  }
+
+  .result {
+    grid-area: result;
+    margin: 0;
+    padding: 11px 13px;
+  }
+
+  .result .download {
+    text-align: center;
+  }
+
+  .note {
+    grid-area: note;
+    margin: 0;
+    text-align: left;
+  }
+
+  .sticky-bar {
+    display: none;
+  }
+}
+
+@media (min-width: 900px) and (max-height: 780px) {
+  .app {
+    grid-template-rows: auto auto auto 9px auto minmax(76px, 1fr) auto;
+    grid-template-areas:
+      "header header"
+      "camera actions"
+      "camera stats"
+      "camera progress"
+      "camera missing"
+      "camera diagnostics"
+      "camera result";
+    gap-block: 8px;
+    padding-block: 10px;
+  }
+
+  .note {
+    display: none;
   }
 }
