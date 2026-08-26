@@ -523,24 +523,13 @@
 
   function scheduleScan() {
     if (!stream || scanTimer || scanFrameCallback) return;
-    if (highWorkers.length && typeof video.requestVideoFrameCallback === "function") {
-      scanFrameCallback = video.requestVideoFrameCallback(() => {
-        scanFrameCallback = 0;
-        lastCameraLiveAt = performance.now();
-        recordCapturedFrame();
-        void scanWithHighSpeedWorkers();
-        scheduleScan();
-      });
-      return;
-    }
     if (highWorkers.length) {
       scanTimer = setTimeout(() => {
         scanTimer = 0;
         lastCameraLiveAt = performance.now();
-        recordCapturedFrame();
-        void scanWithHighSpeedWorkers();
+        if (scanWithHighSpeedWorkers()) recordCapturedFrame();
         scheduleScan();
-      }, 16);
+      }, HIGH_QUAD_GRAB_MS);
       return;
     }
     const interval = barcodeDetector ? DETECTOR_INTERVAL : SCAN_INTERVAL;
@@ -712,23 +701,21 @@
   }
 
   function scanWithHighSpeedWorkers() {
-    if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) return;
+    if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) return false;
     if (!highWorkerReady.some(Boolean)) {
       recoverStuckHighSpeedWorkers();
-      return;
+      return false;
     }
     const now = performance.now();
     for (let index = 0; index < highWorkers.length; index += 1) {
       if (highWorkerBusy[index] && now - highWorkerStartedAt[index] > HIGH_WORKER_TIMEOUT) restartHighSpeedWorker(index);
     }
     if (highMultiLayout) {
-      decodeQuadFrame();
-      return;
+      return decodeQuadFrame();
     }
     if (blindScreenScan || highScanMisses >= 12) {
       blindScreenScan = true;
-      decodeBlindScreenQuadrants();
-      return;
+      return decodeBlindScreenQuadrants();
     }
     if (highGrabInFlight) return;
     if (highWorkerBusy.filter(Boolean).length >= HIGH_SINGLE_INFLIGHT) {
@@ -751,14 +738,15 @@
     void postHighSpeedRegion(slot, job.source, job.maxSymbols, job.retry, job.tile).finally(() => {
       highGrabInFlight = false;
     });
+    return true;
   }
 
   function decodeBlindScreenQuadrants() {
-    if (highGrabInFlight) return;
+    if (highGrabInFlight) return false;
     const slots = idleHighWorkerSlots();
     if (!slots.length) {
       workerBusyDrops += 1;
-      return;
+      return false;
     }
     const candidates = desktopAcquisitionCrops();
     const crops = [];
@@ -772,6 +760,7 @@
     )).finally(() => {
       highGrabInFlight = false;
     });
+    return true;
   }
 
   function desktopAcquisitionCrops() {
@@ -1598,14 +1587,14 @@
   function decodeQuadFrame() {
     if (highQuadJobsInFlight >= HIGH_QUAD_INFLIGHT) {
       workerBusyDrops += 1;
-      return;
+      return false;
     }
     const now = performance.now();
-    if (lastQuadGrabAt && now - lastQuadGrabAt < HIGH_QUAD_GRAB_MS) return;
+    if (lastQuadGrabAt && now - lastQuadGrabAt < HIGH_QUAD_GRAB_MS) return false;
     const slots = idleHighWorkerSlots();
     if (!slots.length) {
       workerBusyDrops += 1;
-      return;
+      return false;
     }
     highQuadJobsInFlight += 1;
     lastQuadGrabAt = now;
@@ -1619,6 +1608,7 @@
         highQuadJobsInFlight = Math.max(0, highQuadJobsInFlight - 1);
       }
     })();
+    return true;
   }
 
   function scanQuadFromLuma() {
