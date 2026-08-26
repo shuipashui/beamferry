@@ -1,5 +1,5 @@
 (() => {
-  const RECEIVER_BUILD = "v89";
+  const RECEIVER_BUILD = "v90";
   if ("serviceWorker" in navigator) {
     Promise.resolve(navigator.serviceWorker.register("sw.js?v=" + RECEIVER_BUILD)).then(reg => {
       reg?.update?.()?.catch?.(() => {});
@@ -47,16 +47,19 @@
   const MAX_FILE_SIZE = 64 * 1024 * 1024;
   const MAX_CHUNKS = 200000;
   const MAX_CHUNK_SIZE = 4096;
-  const HIGH_SPEED_WORKERS = /Android/i.test(navigator.userAgent || "")
-    ? 2
-    : ((navigator.hardwareConcurrency || 4) >= 4 ? 4 : 2);
+  const IS_ANDROID = /Android/i.test(navigator.userAgent || "");
+  const HARDWARE_THREADS = navigator.hardwareConcurrency || 4;
+  const DEVICE_MEMORY_GB = navigator.deviceMemory || 0;
+  const HIGH_SPEED_WORKERS = IS_ANDROID
+    ? (HARDWARE_THREADS >= 6 && DEVICE_MEMORY_GB >= 4 ? 3 : 2)
+    : (HARDWARE_THREADS >= 4 ? 4 : 2);
   const HIGH_WORKER_TIMEOUT = 2500;
   const HIGH_WORKER_BOOT_MS = 25000;
   const HIGH_ACQUIRE_SIZE = 1440;
   const HIGH_TRACK_SIZE = 960;
   const HIGH_TILE_SIZE = 720;
   const HIGH_QUAD_TILE_SIZE = 720;
-  const HIGH_QUAD_PACKED_SIZE = 720;
+  const HIGH_QUAD_PACKED_SIZE = IS_ANDROID ? 680 : 720;
   const HIGH_FULL_SCAN_EVERY_MISSES = 12;
   const HIGH_ROI_MISS_LIMIT = 8;
   const HIGH_CLOSE_BOX_RATIO = 0.5;
@@ -2608,6 +2611,7 @@
         " · 有效载荷 " + formatBytes(highProtocolBytes) + " · 速度 " + latestSpeedLabel +
         " · 会话 " + formatRate(sessionAverageBps) + " · 流 " + (highHeader ? H.streamIdentity(highHeader) : "—"),
       "环境：" + (navigator.userAgent || "未知")
+        + " · 线程 " + HARDWARE_THREADS + " · 内存 " + (DEVICE_MEMORY_GB || "?") + " GB"
     ].join("\n");
   }
 
