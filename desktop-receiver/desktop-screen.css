@@ -1,0 +1,14 @@
+.camera-card video,
+.camera-freeze {
+  object-fit: contain;
+}
+
+@media (min-width: 900px) {
+  .app {
+    max-width: 920px;
+  }
+
+  .camera-card {
+    aspect-ratio: 16 / 9;
+  }
+}

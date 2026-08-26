@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07110f">
+  <meta name="description" content="BeamFerry 电脑屏幕接收端，通过捕获屏幕、窗口或浏览器标签页接收离线二维码文件流，不使用摄像头。">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <link rel="canonical" href="https://shuipashui.github.io/beamferry/desktop-receiver/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="BeamFerry">
+  <meta property="og:title" content="BeamFerry - 电脑屏幕文件接收端">
+  <meta property="og:description" content="捕获屏幕、窗口或浏览器标签页，接收 BeamFerry 离线二维码文件流。">
+  <meta property="og:url" content="https://shuipashui.github.io/beamferry/desktop-receiver/">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="BeamFerry - Offline QR File Transfer">
+  <meta name="twitter:description" content="Open-source offline file transfer over animated QR codes, with web and Android receivers.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>BeamFerry - 电脑屏幕文件接收端</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="desktop-screen.css">
+  <link rel="preload" href="vendor/decimen/zxing_reader-EOacYbLr.wasm" as="fetch" crossorigin>
+  <style>.diagnostics pre{white-space:pre-wrap;word-break:break-word;color:#c3e3d6;font:11px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;margin:10px 0 0;max-height:220px;overflow:auto}</style>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"BeamFerry Desktop Screen Receiver","applicationCategory":"UtilitiesApplication","operatingSystem":"Windows, macOS, Linux","description":"Receive BeamFerry files by capturing a screen, window, or browser tab.","url":"https://shuipashui.github.io/beamferry/desktop-receiver/","codeRepository":"https://github.com/shuipashui/beamferry","license":"https://opensource.org/license/mit","isAccessibleForFree":true}</script>
+</head>
+<body>
+  <main class="app">
+    <header><div class="mark">BF</div><div><h1>BeamFerry</h1><p>电脑屏幕接收端 · 单码 / 四码</p></div><a id="openSender" class="jump small" href="../sender/dist/beamferry-sender.html">打开发送端</a></header>
+    <section class="camera-card">
+      <video id="video" playsinline muted></video>
+      <canvas id="cameraFreeze" class="camera-freeze" hidden></canvas>
+      <canvas id="scanCanvas" hidden></canvas>
+      <div id="cameraHint" class="camera-hint">点击“选择屏幕源”，然后选择正在播放 BeamFerry 二维码的屏幕、窗口或浏览器标签页</div>
+    </section>
+    <div class="actions">
+      <button id="startBtn" class="primary">选择屏幕源</button>
+      <button id="stopBtn" disabled>停止</button>
+      <button id="resetBtn">清空进度</button>
+      <div class="fps-switch" role="group" aria-label="屏幕捕获帧率">
+        <span>捕获</span>
+        <button type="button" id="fps30" class="small">30</button>
+        <button type="button" id="fps60" class="small primary">60</button>
+      </div>
+    </div>
+    <section class="card stats">
+      <div><span>状态</span><strong id="status">等待开始</strong></div>
+      <div><span>文件</span><strong id="fileName">-</strong></div>
+      <div><span>进度</span><strong id="progressText">0%</strong></div><div><span>速度 / 扫描</span><strong id="speedText">实时 — · 平均 —</strong><strong id="scanRateText">—</strong></div>
+    </section>
+    <div class="progress"><i id="progressBar"></i></div>
+    <section class="card"><div class="row"><strong>缺失片段</strong><button id="copyMissing" class="small" disabled>复制编号</button></div><code id="missing">-</code></section>
+    <section class="card diagnostics"><div class="row"><strong>诊断信息</strong><button id="copyDiagnosticsCard" class="small">复制诊断</button></div><pre id="diagnostics">等待开始扫描</pre></section>
+    <section id="result" class="card result" hidden><strong>文件已恢复</strong><span id="resultInfo"></span><a id="download" class="download" download>下载文件</a></section>
+    <p class="note">仅使用屏幕捕获，不访问摄像头。建议优先选择二维码所在的窗口或标签页，并确保完整画面未被裁切。浏览器要求页面运行在 HTTPS 或 localhost。</p>
+    <div class="sticky-bar"><button type="button" id="copyDiagnostics" class="small">复制诊断</button></div>
+  </main>
+  <script src="vendor/jsQR.js"></script>
+  <script src="receiver-storage.js"></script>
+  <script src="protocol.js"></script>
+  <script src="highspeed-protocol.js"></script>
+  <script src="app.js?v=1"></script>
+</body>
+</html>
