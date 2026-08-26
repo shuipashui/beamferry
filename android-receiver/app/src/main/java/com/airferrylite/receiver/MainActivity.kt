@@ -517,7 +517,7 @@ class MainActivity : AppCompatActivity() {
             "四码高帧率早期命中率偏低，正在重新定相（${quadPhaseRecovery.attempts}/3）"
         }
         quadPhaseRecovery.rebase(frames, hits)
-        restartScanner(countRecovery = false, forceRebind = true)
+        restartScanner(countRecovery = false, forceRebind = true, preserveQuadCalibration = true)
     }
 
     private fun showIdle() {
@@ -991,7 +991,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun restartScanner(countRecovery: Boolean, forceRebind: Boolean = false) {
+    private fun restartScanner(
+        countRecovery: Boolean,
+        forceRebind: Boolean = false,
+        preserveQuadCalibration: Boolean = false
+    ) {
         if (!countRecovery) recoverBurst = 0
         val now = SystemClock.elapsedRealtime()
         if (!forceRebind && lastRecoverAt != 0L && now - lastRecoverAt < RECOVER_COOLDOWN_MS) {
@@ -1001,7 +1005,7 @@ class MainActivity : AppCompatActivity() {
         lastRecoverAt = now
         imageAnalysis?.clearAnalyzer()
         cameraProvider?.unbindAll()
-        frameAnalyzer.recoverPipeline(countRecovery)
+        frameAnalyzer.recoverPipeline(countRecovery, preserveQuadCalibration)
         previewView.post {
             if (!isDestroyed && cameraProvider != null) bindCamera()
         }

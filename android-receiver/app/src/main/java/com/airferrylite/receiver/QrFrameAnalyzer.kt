@@ -190,7 +190,11 @@ class QrFrameAnalyzer(
         synchronized(lumaLock) { lumaScratch = null }
     }
 
-    fun recoverPipeline(count: Boolean = false) {
+    fun recoverPipeline(count: Boolean = false, preserveQuadCalibration: Boolean = false) {
+        val savedQuadTiles = if (preserveQuadCalibration) stableQuadTiles.get() else null
+        val savedQuadMask = if (preserveQuadCalibration) quadCalibratedMask.get() else 0
+        val savedCalibrationFrames = if (preserveQuadCalibration) quadCalibrationCompletedAtFrame.get() else 0L
+        val savedCalibrationScans = if (preserveQuadCalibration) quadCalibrationCompletedAtScan.get() else 0L
         skipUntilRecover.set(true)
         val oldDecode = decodeExecutor
         val oldTiles = tileExecutor
@@ -205,6 +209,13 @@ class QrFrameAnalyzer(
         synchronized(lumaLock) { lumaScratch = null }
         analysisIdle.set(false)
         resetSession()
+        if (savedQuadTiles != null && savedQuadTiles.size >= 4 && (savedQuadMask and 0x0f) == 0x0f) {
+            stableQuadTiles.set(savedQuadTiles)
+            trackedTiles.set(savedQuadTiles)
+            quadCalibratedMask.set(savedQuadMask)
+            quadCalibrationCompletedAtFrame.set(savedCalibrationFrames)
+            quadCalibrationCompletedAtScan.set(savedCalibrationScans)
+        }
         lastImageTimestamp.set(0)
         staleTimestampFrames.set(0)
         recoverRequested.set(false)
@@ -362,7 +373,8 @@ class QrFrameAnalyzer(
                     retryBinarizer = false,
                     maxSymbols = if (lockedDual) 2 else 1,
                     trackDualSlots = lockedDual,
-                    recoverQuadSlots = lockedQuad && quadFullRefresh60.get()
+                    recoverQuadSlots = lockedQuad && quadFullRefresh60.get() &&
+                        (quadCalibratedMask.get() and 0x0f) == 0x0f
                 )
             )
         }
@@ -397,10 +409,11 @@ class QrFrameAnalyzer(
                         (calibrateNow && alreadyCalibrated) || tileCovered(exclusive[index], merged, exclusive)
                     }
                 }
+                val useCalibrationRetry = calibrateNow && (quadRecoveryScans.get() and 1L) == 0L
                 add(readCropsParallel(
                     luma,
                     pending.take(TILE_WORKERS),
-                    retryBinarizer = calibrateNow
+                    retryBinarizer = useCalibrationRetry
                 ))
             }
             return merged
@@ -904,7 +917,7 @@ class QrFrameAnalyzer(
         private const val DUAL_RECOVERY_INTERVAL = 8
         private const val QUAD_RECOVERY_INTERVAL = 12
         private const val QUAD_SLOT_RECOVERY_MISSES = 12
-        private const val QUAD_CALIBRATION_INTERVAL = 8
+        private const val QUAD_CALIBRATION_INTERVAL = 4
         private const val BOOTSTRAP_RETRY_INTERVAL = 8
         private const val STABLE_CACHE_MISS_LIMIT = 3
     }
