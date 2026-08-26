@@ -988,10 +988,6 @@
     const tilePx = modules * scale;
     const canvasW = tilePx * shape.columns;
     const canvasH = tilePx * shape.rows;
-    // Preserve an integer-pixel backing grid for crisp modules, then fit that
-    // grid to the full viewer. This avoids a higher QR version becoming
-    // visibly smaller when the integer module scale drops by one step.
-    const displayScale = Math.min(box.width / canvasW, box.height / canvasH);
     return {
       quad: codes === 4,
       dual: codes === 2,
@@ -1002,8 +998,8 @@
       tilePx,
       canvasW,
       canvasH,
-      cssWidth: canvasW * displayScale,
-      cssHeight: canvasH * displayScale
+      cssWidth: canvasW / dpr,
+      cssHeight: canvasH / dpr
     };
   }
 
@@ -1145,14 +1141,6 @@
       quiet: shape.quiet,
       canvasDeviceWidth: modules * shape.columns * scale,
       canvasDeviceHeight: modules * shape.rows * scale,
-      displayWidth: Math.round(modules * shape.columns * scale * Math.min(
-        box.width / (modules * shape.columns * scale),
-        box.height / (modules * shape.rows * scale)
-      )),
-      displayHeight: Math.round(modules * shape.rows * scale * Math.min(
-        box.width / (modules * shape.columns * scale),
-        box.height / (modules * shape.rows * scale)
-      )),
       cell: scale / dpr,
       scale
     };
@@ -1162,7 +1150,7 @@
     if (!rateHint) return;
     const rate = currentLayout();
     let text = "理论速度：" + formatRate(rate.screen) + "（" + rate.bytes + " B × " + rate.codes + " 码 × " + rate.fps + " FPS）· 载荷约 " + formatRate(rate.payload);
-    if (rate.scale) text += " · QR V" + rate.version + " / " + rate.qrModules + " 模块 · 静区 " + rate.quiet + " · 栅格每模块 " + rate.scale + " 设备像素 · 显示 " + rate.displayWidth + "×" + rate.displayHeight + " CSS 像素";
+    if (rate.scale) text += " · QR V" + rate.version + " / " + rate.qrModules + " 模块 · 静区 " + rate.quiet + " · 每模块 " + rate.scale + " 设备像素 · 画布 " + rate.canvasDeviceWidth + "×" + rate.canvasDeviceHeight + " 设备像素";
     if (rate.codes === 4) text += rate.fps === 50
       ? "。50 FPS 实验档：60 Hz 下按 6 个 vsync 更新 5 次，四码整屏同换"
       : rate.fps === 60
