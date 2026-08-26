@@ -494,15 +494,27 @@ class MainActivity : AppCompatActivity() {
         if (inHalRecoveryWarmup()) return
         val frames = stats.quadFrameCounts.sum()
         val hits = stats.quadFrameCounts.withIndex().sumOf { (codes, count) -> codes.toLong() * count }
-        if (!quadPhaseRecovery.observe(
+        val lastFrameAgeMs = if (highLastFrameAt == 0L) 0L else
+            (SystemClock.elapsedRealtime() - highLastFrameAt).coerceAtLeast(0L)
+        val opticalStall = quadPhaseRecovery.observeOpticalStall(
+            stats.quadFullRefresh60,
+            stats.roiMisses,
+            lastFrameAgeMs
+        )
+        val poorEarlyPhase = !opticalStall && quadPhaseRecovery.observe(
                 stats.quadFullRefresh60,
                 frames,
                 hits,
                 lastHighSolved,
                 lastHighTotal,
                 speedBytesPerSecond
-            )) return
-        statusText.text = "四码高帧率早期命中率偏低，正在重新定相（${quadPhaseRecovery.attempts}/1）"
+            )
+        if (!opticalStall && !poorEarlyPhase) return
+        statusText.text = if (opticalStall) {
+            "四码光学流持续中断，正在重新定相（${quadPhaseRecovery.attempts}/3）"
+        } else {
+            "四码高帧率早期命中率偏低，正在重新定相（${quadPhaseRecovery.attempts}/3）"
+        }
         quadPhaseRecovery.rebase(frames, hits)
         restartScanner(countRecovery = false, forceRebind = true)
     }
@@ -1027,7 +1039,7 @@ class MainActivity : AppCompatActivity() {
             val slotHits = stats.quadSlotHits.joinToString("/")
             val phaseBefore = quadPhaseRecovery.beforeQrPerFrame?.let { String.format("%.2f", it) } ?: "—"
             val phaseAfter = quadPhaseRecovery.afterQrPerFrame?.let { String.format("%.2f", it) } ?: "—"
-            lines.add(5, "四码高速：帧 0/1/2/3/4=$frameCounts · 补扫 ${stats.quadRecoveryScans} · 单格加强 ${stats.quadSlotRecoveryScans} · 重新定相 ${quadPhaseRecovery.attempts}/1 · 前/后 $phaseBefore/$phaseAfter QR/帧")
+            lines.add(5, "四码高速：帧 0/1/2/3/4=$frameCounts · 补扫 ${stats.quadRecoveryScans} · 单格加强 ${stats.quadSlotRecoveryScans} · 重新定相 ${quadPhaseRecovery.attempts}/3 · 前/后 $phaseBefore/$phaseAfter QR/帧")
             lines.add(6, "四码格位：左上/右上/左下/右下=$slotHits · 稳定缓存 ${if (stats.quadStableCacheAvailable) "有" else "无"}")
         }
         if (invalidFrameCount.get() > 0) lines.add("无效样本：$invalidFrameSample")

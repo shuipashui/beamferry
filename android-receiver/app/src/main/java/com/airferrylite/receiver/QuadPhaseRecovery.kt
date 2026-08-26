@@ -5,7 +5,8 @@ internal class QuadPhaseRecovery(
     private val minimumFrames: Long = 45,
     private val poorQrPerFrame: Double = 0.20,
     private val poorWindowsRequired: Int = 1,
-    private val maximumAttempts: Int = 1,
+    private val maximumEarlyAttempts: Int = 1,
+    private val maximumAttempts: Int = 3,
     private val maximumProgress: Double = 0.15,
     private val healthyPayloadBytesPerSecond: Double = 120.0 * 1024.0
 ) {
@@ -65,9 +66,24 @@ internal class QuadPhaseRecovery(
             return false
         }
         if (qrPerFrame < poorQrPerFrame) poorWindows += 1 else poorWindows = 0
-        if (poorWindows < poorWindowsRequired || attempts >= maximumAttempts) return false
+        if (poorWindows < poorWindowsRequired || attempts >= maximumEarlyAttempts) return false
         poorWindows = 0
         beforeQrPerFrame = qrPerFrame
+        afterQrPerFrame = null
+        awaitingAfterSample = true
+        attempts += 1
+        return true
+    }
+
+    fun observeOpticalStall(
+        enabled: Boolean,
+        consecutiveMisses: Int,
+        lastFrameAgeMs: Long
+    ): Boolean {
+        if (!enabled || attempts >= maximumAttempts) return false
+        if (consecutiveMisses < 24 || lastFrameAgeMs < 1_200L) return false
+        poorWindows = 0
+        beforeQrPerFrame = 0.0
         afterQrPerFrame = null
         awaitingAfterSample = true
         attempts += 1

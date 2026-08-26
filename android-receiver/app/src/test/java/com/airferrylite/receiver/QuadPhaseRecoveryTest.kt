@@ -33,6 +33,17 @@ class QuadPhaseRecoveryTest {
     }
 
     @Test
+    fun sustainedOpticalStallAllowsBoundedLateRephases() {
+        val recovery = QuadPhaseRecovery()
+        assertTrue(recovery.observe(true, 60, 0, 0, 100, 0.0))
+        assertFalse(recovery.observeOpticalStall(true, 23, 2_000L))
+        assertFalse(recovery.observeOpticalStall(true, 30, 1_199L))
+        assertTrue(recovery.observeOpticalStall(true, 30, 2_000L))
+        assertTrue(recovery.observeOpticalStall(true, 30, 2_000L))
+        assertFalse(recovery.observeOpticalStall(true, 30, 2_000L))
+    }
+
+    @Test
     fun healthyThroughputAndLateProgressBlockRephase() {
         val throughput = QuadPhaseRecovery()
         assertFalse(throughput.observe(true, 60, 0, 5, 100, 121.0 * 1024.0))

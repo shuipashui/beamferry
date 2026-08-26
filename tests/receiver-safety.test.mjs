@@ -28,6 +28,7 @@ assert.ok(androidAnalyzer.includes("stableDualTiles.set(null)"), "a new Android 
 assert.ok(androidAnalyzer.includes("ScanLayout.updateDualTiles("), "Android dual tracking must preserve a proven pair after one rolling-shutter hit");
 assert.ok(androidMain.includes("maybeRephaseDualCamera(stats)"), "Android 60 FPS dual mode must escape sustained bad camera/display phase");
 assert.ok(androidMain.includes("maybeRephaseQuadCamera(stats)"), "experimental quad 60 FPS must escape sustained bad camera/display phase");
+assert.ok(androidMain.includes("observeOpticalStall("), "high-FPS quad must rephase after a sustained late optical blackout");
 assert.ok(androidMain.includes("stats.quadFullRefresh60"), "ordinary quad streams must not trigger quad 60 FPS rephasing");
 assert.ok(androidAnalyzer.includes("stableQuadTiles"), "experimental quad 60 FPS must preserve a stable four-tile cache");
 assert.ok(androidAnalyzer.includes("miss >= missLimit && !quadFullRefresh60.get()"), "high-FPS quad misses must not discard the locked four-tile grid");
