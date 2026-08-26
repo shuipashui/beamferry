@@ -16,28 +16,31 @@
 <body>
   <main class="shell">
     <section class="panel controls">
-      <div class="brand"><span class="mark">BF</span><div><h1>BeamFerry</h1><p>单文件离线二维码发送端</p></div></div>
+      <div class="brand"><span class="mark">BF</span><div><h1>BeamFerry</h1><p>离线二维码文件发送端</p></div><a id="openReceiver" class="jump receiver-jump" target="_blank" rel="noopener">接收端</a></div>
       <label class="drop" id="dropZone">
         <input id="fileInput" type="file" multiple>
         <strong id="fileLabel">选择或拖入一个或多个文件</strong>
-        <span>文件只在本机浏览器内处理，不会上传</span>
+        <span>仅在本机处理 · 不会上传</span>
       </label>
-      <div class="grid">
-        <label>每帧数据
-        <select id="chunkSize"><option value="1003">1003 B</option><option value="1273">1273 B</option><option value="1465">1465 B</option><option value="1732">1732 B（实验）</option><option value="1952">1952 B（实验）</option><option value="2068" selected>2068 B（实验）</option></select>
-        </label>
-        <label>播放帧率
-          <select id="fps"><option value="20">20 FPS</option><option value="24">24 FPS</option><option value="30" selected>30 FPS</option></select>
-        </label>
-        <label>二维码布局
-          <select id="qrMode"><option value="single">单码（兼容）</option><option value="quad" selected>四码（多码吞吐）</option><option value="dual">双码（上排）</option></select>
-        </label>
-      </div>
-      <p class="tip" id="rateHint">理论速度：—</p>
-      <div class="actions"><button id="prepareBtn" class="primary" disabled>生成二维码流</button><button id="playBtn" disabled>开始播放</button><button id="fullscreenBtn" disabled>全屏</button><button id="resetBtn" disabled>重置</button><a id="openReceiver" class="jump" target="_blank" rel="noopener">打开接收端</a></div>
+      <section class="control-card" aria-labelledby="transferSettingsTitle">
+        <div class="section-title" id="transferSettingsTitle"><strong>传输设置</strong><span>推荐四码 · 2068 B · 30 FPS</span></div>
+        <div class="grid">
+          <label>每帧数据
+          <select id="chunkSize"><option value="1003">1003 B</option><option value="1273">1273 B</option><option value="1465">1465 B</option><option value="1732">1732 B（实验）</option><option value="1952">1952 B（实验）</option><option value="2068" selected>2068 B（实验）</option></select>
+          </label>
+          <label>播放帧率
+            <select id="fps"><option value="20">20 FPS</option><option value="24">24 FPS</option><option value="30" selected>30 FPS</option></select>
+          </label>
+          <label class="layout-field">二维码布局
+            <select id="qrMode"><option value="single">单码（兼容）</option><option value="quad" selected>四码（多码吞吐）</option><option value="dual">双码（上排）</option></select>
+          </label>
+        </div>
+        <p class="tip rate-hint" id="rateHint">理论速度：—</p>
+      </section>
+      <div class="actions"><button id="prepareBtn" class="primary" disabled>生成二维码流</button><button id="playBtn" disabled>开始播放</button><button id="fullscreenBtn" disabled>全屏</button><button id="resetBtn" disabled>重置</button></div>
       <div class="status"><div><span>状态</span><strong id="statusText">等待文件</strong></div><div><span>传输</span><strong id="compressText">—</strong></div><div><span>会话</span><strong id="sessionText">—</strong></div><div><span>片段</span><strong id="frameText">—</strong></div></div>
       <div class="progress"><i id="progressBar"></i></div>
-      <p class="tip">打开单码、四码或双码时预填最高档。四码 1732 / 1952 / 2068 B 是高密度实验档，稳定基线仍是 1465 B · 30 FPS；诊断会显示 QR Version、模块数、模块像素和画布尺寸。窗口里也能播，全屏模块更大。四码 30 FPS 保持原整屏同换路径；60 FPS 是每个刷新周期四格全部更新的实验档，Android 需 0.8.119 或更高版本。双码只占 2×2 上排；50 FPS 使用 5/6 vsync 节拍。空格键暂停，全屏后右上角同样有效。</p>
+      <details class="guide"><summary>参数说明与兼容性</summary><p class="tip">打开单码、四码或双码时预填最高档。四码 1732 / 1952 / 2068 B 是高密度实验档，稳定基线仍是 1465 B · 30 FPS；诊断会显示 QR Version、模块数、模块像素和画布尺寸。窗口里也能播，全屏模块更大。四码 30 FPS 保持原整屏同换路径；60 FPS 是每个刷新周期四格全部更新的实验档，Android 需 0.8.119 或更高版本。双码只占 2×2 上排；50 FPS 使用 5/6 vsync 节拍。空格键暂停，全屏后右上角同样有效。</p></details>
     </section>
     <section class="panel viewer">
       <canvas id="qrCanvas" width="1080" height="1080"></canvas>

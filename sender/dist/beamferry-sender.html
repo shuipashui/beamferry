@@ -11,37 +11,44 @@
   <meta property="og:description" content="在浏览器本地把文件编码成连续二维码，通过屏幕传输到手机。">
   <meta property="og:url" content="https://shuipashui.github.io/beamferry/sender/dist/beamferry-sender.html">
   <title>BeamFerry - 离线二维码文件发送端</title>
-  <style>:root{color-scheme:dark;--bg:#07110f;--panel:#0d1b17;--line:#244137;--text:#edf9f4;--muted:#93b4a8;--accent:#5ef0ad;--accent2:#22b979}*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden}body{background:radial-gradient(circle at 15% 10%,#12352a 0,transparent 38%),var(--bg);font-family:Inter,ui-sans-serif,system-ui,"Microsoft YaHei",sans-serif;color:var(--text)}.shell{height:100%;max-height:100dvh;overflow:hidden;display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:16px;padding:12px}.panel{background:rgba(13,27,23,.92);border:1px solid var(--line);border-radius:22px;box-shadow:0 24px 60px rgba(0,0,0,.35);min-height:0}.controls{padding:20px;display:flex;flex-direction:column;gap:14px;overflow:auto}.brand{display:flex;gap:14px;align-items:center}.mark{display:grid;place-items:center;width:52px;height:52px;border-radius:16px;background:var(--accent);color:#062218;font-weight:900}.brand h1{margin:0;font-size:25px}.brand p{margin:4px 0 0;color:var(--muted)}.drop{min-height:120px;border:1px dashed #497365;border-radius:18px;display:grid;place-content:center;text-align:center;gap:8px;cursor:pointer;background:#0a1714;flex:none}.drop.drag{border-color:var(--accent);background:#10271f}.drop input{display:none}.drop strong{font-size:17px;white-space:pre-line;max-height:7.2em;overflow:auto}.drop span,.tip{color:var(--muted);font-size:13px;line-height:1.65}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.grid label{font-size:13px;color:var(--muted)}select{width:100%;margin-top:7px;padding:11px 12px;border-radius:12px;border:1px solid var(--line);background:#071410;color:var(--text)}.actions{display:flex;gap:10px;flex-wrap:wrap}button,.actions a.jump{border:1px solid var(--line);background:#132b23;color:var(--text);border-radius:12px;padding:12px 16px;font-weight:750;cursor:pointer;text-decoration:none;display:inline-block}button.primary{background:var(--accent);color:#062218;border-color:transparent}button:disabled{opacity:.42;cursor:not-allowed}.status{display:grid;grid-template-columns:1fr 1fr;gap:8px}.status div{padding:11px;background:#091612;border-radius:12px;min-width:0}.status span{display:block;color:var(--muted);font-size:11px}.status strong{display:block;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.progress{height:8px;background:#07110f;border-radius:99px;overflow:hidden;flex:none}.progress i{display:block;width:0;height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));transition:width .12s}.viewer{display:grid;place-items:center;padding:8px;position:relative;overflow:hidden;background:#0d1b17;min-height:0;border-radius:8px}.viewer:fullscreen,.viewer:-webkit-full-screen{padding:0;background:#fff;border:0;border-radius:0;box-shadow:none}#qrCanvas{display:block;background:#fff;border-radius:0;image-rendering:pixelated}.overlay{position:absolute;inset:0;display:grid;place-items:center;padding:28px;background:rgba(7,17,15,.88)}.overlay.hidden{display:none}@media(max-width:900px){html,body,.shell{height:auto;max-height:none;overflow:auto}.shell{grid-template-columns:1fr;grid-template-rows:auto minmax(70vh,1fr)}.viewer{min-height:70vh}.status{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}@media(max-height:800px){.drop{min-height:88px}.controls{padding:14px;gap:10px}.viewer{padding:8px}}
+  <style>:root{color-scheme:dark;--bg:#07110f;--panel:#0d1b17;--line:#244137;--text:#edf9f4;--muted:#93b4a8;--accent:#5ef0ad;--accent2:#22b979}*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden}body{background:radial-gradient(circle at 15% 10%,#12352a 0,transparent 38%),var(--bg);font-family:Inter,ui-sans-serif,system-ui,"Microsoft YaHei",sans-serif;color:var(--text)}.shell{height:100%;max-height:100dvh;overflow:hidden;display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:16px;padding:12px}.panel{background:rgba(13,27,23,.92);border:1px solid var(--line);border-radius:22px;box-shadow:0 24px 60px rgba(0,0,0,.35);min-height:0}.controls{padding:16px;display:flex;flex-direction:column;gap:10px;overflow:auto}.brand{display:flex;gap:11px;align-items:center}.brand>div{min-width:0}.mark{display:grid;place-items:center;width:46px;height:46px;border-radius:14px;background:var(--accent);color:#062218;font-weight:900;flex:none}.brand h1{margin:0;font-size:23px}.brand p{margin:2px 0 0;color:var(--muted);font-size:12px}.receiver-jump{margin-left:auto;flex:none}.drop{min-height:92px;border:1px dashed #497365;border-radius:15px;display:grid;place-content:center;text-align:center;gap:5px;padding:12px;cursor:pointer;background:#0a1714;flex:none}.drop.drag{border-color:var(--accent);background:#10271f}.drop input{display:none}.drop strong{font-size:15px;white-space:pre-line;max-height:4.8em;overflow:auto}.drop span,.tip{color:var(--muted);font-size:12px;line-height:1.5}.control-card{padding:12px;border:1px solid var(--line);border-radius:15px;background:#0a1714}.section-title{display:flex;justify-content:space-between;gap:10px;align-items:baseline;margin-bottom:10px}.section-title strong{font-size:14px}.section-title span{color:var(--muted);font-size:10px;text-align:right}.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.grid label{font-size:12px;color:var(--muted)}.layout-field{grid-column:1/-1}select{width:100%;margin-top:5px;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:#071410;color:var(--text);min-height:38px}.rate-hint{margin:10px 0 0;padding-top:9px;border-top:1px solid rgba(73,115,101,.42)}.actions{display:grid;grid-template-columns:1.35fr 1fr 1fr 1fr;gap:7px}button,.jump{border:1px solid var(--line);background:#132b23;color:var(--text);border-radius:10px;padding:10px 11px;font-weight:750;cursor:pointer;text-decoration:none;display:inline-grid;place-items:center;min-height:40px}button.primary{background:var(--accent);color:#062218;border-color:transparent}button:disabled{opacity:.42;cursor:not-allowed}.status{display:grid;grid-template-columns:1fr 1fr;gap:7px}.status div{padding:9px 10px;background:#091612;border-radius:10px;min-width:0}.status span{display:block;color:var(--muted);font-size:10px}.status strong{display:block;margin-top:3px;font-size:12px;line-height:1.35;overflow-wrap:anywhere}.progress{height:7px;background:#07110f;border-radius:99px;overflow:hidden;flex:none}.progress i{display:block;width:0;height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));transition:width .12s}.guide{border:1px solid rgba(73,115,101,.5);border-radius:10px;padding:8px 10px;color:var(--muted);font-size:12px}.guide summary{cursor:pointer;color:#c6e2d7;font-weight:700}.guide .tip{margin:8px 0 1px}.viewer{display:grid;place-items:center;padding:8px;position:relative;overflow:hidden;background:#0d1b17;min-height:0;border-radius:8px}.viewer:fullscreen,.viewer:-webkit-full-screen{padding:0;background:#fff;border:0;border-radius:0;box-shadow:none}#qrCanvas{display:block;background:#fff;border-radius:0;image-rendering:pixelated}.overlay{position:absolute;inset:0;display:grid;place-items:center;padding:28px;background:rgba(7,17,15,.88)}.overlay.hidden{display:none}@media(max-width:900px){html,body,.shell{height:auto;max-height:none;overflow:auto}.shell{grid-template-columns:1fr;grid-template-rows:auto minmax(70vh,1fr)}.viewer{min-height:70vh}.controls{overflow:visible}.status{grid-template-columns:1fr 1fr}}@media(max-width:520px){.controls{padding:12px}.brand h1{font-size:20px}.brand p{font-size:11px}.mark{width:40px;height:40px}.drop{min-height:78px}.actions{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr 1fr}.section-title span{max-width:170px}}@media(max-width:360px){.grid{grid-template-columns:1fr}.layout-field{grid-column:auto}.section-title{align-items:flex-start;flex-direction:column}.actions{grid-template-columns:1fr 1fr}}@media(max-height:800px) and (min-width:901px){.drop{min-height:72px}.controls{padding:12px;gap:8px}.control-card{padding:10px}.section-title{margin-bottom:7px}.rate-hint{max-height:74px;overflow:auto}.viewer{padding:8px}}
 .receiver-link{position:relative;z-index:1;display:grid;grid-template-columns:minmax(180px,260px) 200px;gap:28px;align-items:center;width:min(540px,100%);padding:24px;border:1px solid var(--line);border-radius:16px;background:#091612;overflow:visible;text-align:left}.receiver-link-copy{display:flex;flex-direction:column;gap:8px;min-width:0}.receiver-link-copy strong{font-size:18px}.receiver-link-copy span{color:var(--muted);font-size:13px}.receiver-link-copy a{color:var(--accent);font-size:13px;line-height:1.5;overflow-wrap:anywhere}.receiver-link-copy small{margin-top:6px;color:var(--muted);font-size:12px;line-height:1.5}.receiver-qr-wrap{display:grid;place-items:center;width:200px;height:200px;padding:12px;background:#fff;border-radius:6px;overflow:visible}.receiver-link canvas{display:block;width:176px;height:176px;flex:none;background:#fff;border-radius:0;image-rendering:pixelated}@media(max-width:620px){.overlay{padding:16px}.receiver-link{grid-template-columns:1fr;gap:18px;width:min(300px,100%);padding:18px;text-align:center}.receiver-qr-wrap{justify-self:center;width:174px;height:174px}.receiver-link canvas{width:150px;height:150px}}
 .viewer-hud{display:none;position:absolute;top:12px;right:12px;z-index:4;gap:8px;align-items:center}.viewer:fullscreen .viewer-hud,.viewer:-webkit-full-screen .viewer-hud{display:flex}.viewer-hud button{border:1px solid var(--line);background:#132b23;color:var(--text);border-radius:12px;padding:10px 14px;font-weight:750;cursor:pointer}
 .quad-optical #qrCanvas{filter:brightness(1.08) contrast(1.12)}
+@media(max-width:900px){.shell{grid-template-rows:auto auto}.viewer{height:min(calc(100vw - 24px),82vh);min-height:min(70vh,calc(100vw - 24px));min-width:0}}
+@media(max-width:900px){.viewer{height:calc(100vw - 24px);min-height:calc(100vw - 24px)}}
+@media(max-height:800px) and (min-width:901px){.actions button{padding:7px 4px;font-size:12px;white-space:nowrap}}
+@media(max-height:800px) and (min-width:901px){.controls{gap:7px}}
 </style>
 </head>
 <body>
   <main class="shell">
     <section class="panel controls">
-      <div class="brand"><span class="mark">BF</span><div><h1>BeamFerry</h1><p>单文件离线二维码发送端</p></div></div>
+      <div class="brand"><span class="mark">BF</span><div><h1>BeamFerry</h1><p>离线二维码文件发送端</p></div><a id="openReceiver" class="jump receiver-jump" target="_blank" rel="noopener">接收端</a></div>
       <label class="drop" id="dropZone">
         <input id="fileInput" type="file" multiple>
         <strong id="fileLabel">选择或拖入一个或多个文件</strong>
-        <span>文件只在本机浏览器内处理，不会上传</span>
+        <span>仅在本机处理 · 不会上传</span>
       </label>
-      <div class="grid">
-        <label>每帧数据
-        <select id="chunkSize"><option value="1003">1003 B</option><option value="1273">1273 B</option><option value="1465">1465 B</option><option value="1732">1732 B（实验）</option><option value="1952">1952 B（实验）</option><option value="2068" selected>2068 B（实验）</option></select>
-        </label>
-        <label>播放帧率
-          <select id="fps"><option value="20">20 FPS</option><option value="24">24 FPS</option><option value="30" selected>30 FPS</option></select>
-        </label>
-        <label>二维码布局
-          <select id="qrMode"><option value="single">单码（兼容）</option><option value="quad" selected>四码（多码吞吐）</option><option value="dual">双码（上排）</option></select>
-        </label>
-      </div>
-      <p class="tip" id="rateHint">理论速度：—</p>
-      <div class="actions"><button id="prepareBtn" class="primary" disabled>生成二维码流</button><button id="playBtn" disabled>开始播放</button><button id="fullscreenBtn" disabled>全屏</button><button id="resetBtn" disabled>重置</button><a id="openReceiver" class="jump" target="_blank" rel="noopener">打开接收端</a></div>
+      <section class="control-card" aria-labelledby="transferSettingsTitle">
+        <div class="section-title" id="transferSettingsTitle"><strong>传输设置</strong><span>推荐四码 · 2068 B · 30 FPS</span></div>
+        <div class="grid">
+          <label>每帧数据
+          <select id="chunkSize"><option value="1003">1003 B</option><option value="1273">1273 B</option><option value="1465">1465 B</option><option value="1732">1732 B（实验）</option><option value="1952">1952 B（实验）</option><option value="2068" selected>2068 B（实验）</option></select>
+          </label>
+          <label>播放帧率
+            <select id="fps"><option value="20">20 FPS</option><option value="24">24 FPS</option><option value="30" selected>30 FPS</option></select>
+          </label>
+          <label class="layout-field">二维码布局
+            <select id="qrMode"><option value="single">单码（兼容）</option><option value="quad" selected>四码（多码吞吐）</option><option value="dual">双码（上排）</option></select>
+          </label>
+        </div>
+        <p class="tip rate-hint" id="rateHint">理论速度：—</p>
+      </section>
+      <div class="actions"><button id="prepareBtn" class="primary" disabled>生成二维码流</button><button id="playBtn" disabled>开始播放</button><button id="fullscreenBtn" disabled>全屏</button><button id="resetBtn" disabled>重置</button></div>
       <div class="status"><div><span>状态</span><strong id="statusText">等待文件</strong></div><div><span>传输</span><strong id="compressText">—</strong></div><div><span>会话</span><strong id="sessionText">—</strong></div><div><span>片段</span><strong id="frameText">—</strong></div></div>
       <div class="progress"><i id="progressBar"></i></div>
-      <p class="tip">打开单码、四码或双码时预填最高档。四码 1732 / 1952 / 2068 B 是高密度实验档，稳定基线仍是 1465 B · 30 FPS；诊断会显示 QR Version、模块数、模块像素和画布尺寸。窗口里也能播，全屏模块更大。四码 30 FPS 保持原整屏同换路径；60 FPS 是每个刷新周期四格全部更新的实验档，Android 需 0.8.119 或更高版本。双码只占 2×2 上排；50 FPS 使用 5/6 vsync 节拍。空格键暂停，全屏后右上角同样有效。</p>
+      <details class="guide"><summary>参数说明与兼容性</summary><p class="tip">打开单码、四码或双码时预填最高档。四码 1732 / 1952 / 2068 B 是高密度实验档，稳定基线仍是 1465 B · 30 FPS；诊断会显示 QR Version、模块数、模块像素和画布尺寸。窗口里也能播，全屏模块更大。四码 30 FPS 保持原整屏同换路径；60 FPS 是每个刷新周期四格全部更新的实验档，Android 需 0.8.119 或更高版本。双码只占 2×2 上排；50 FPS 使用 5/6 vsync 节拍。空格键暂停，全屏后右上角同样有效。</p></details>
     </section>
     <section class="panel viewer">
       <canvas id="qrCanvas" width="1080" height="1080"></canvas>
@@ -3379,6 +3386,10 @@ var qrcode = function() {
     const tilePx = modules * scale;
     const canvasW = tilePx * shape.columns;
     const canvasH = tilePx * shape.rows;
+    // Preserve an integer-pixel backing grid for crisp modules, then fit that
+    // grid to the full viewer. This avoids a higher QR version becoming
+    // visibly smaller when the integer module scale drops by one step.
+    const displayScale = Math.min(box.width / canvasW, box.height / canvasH);
     return {
       quad: codes === 4,
       dual: codes === 2,
@@ -3389,8 +3400,8 @@ var qrcode = function() {
       tilePx,
       canvasW,
       canvasH,
-      cssWidth: canvasW / dpr,
-      cssHeight: canvasH / dpr
+      cssWidth: canvasW * displayScale,
+      cssHeight: canvasH * displayScale
     };
   }
 
@@ -3532,6 +3543,14 @@ var qrcode = function() {
       quiet: shape.quiet,
       canvasDeviceWidth: modules * shape.columns * scale,
       canvasDeviceHeight: modules * shape.rows * scale,
+      displayWidth: Math.round(modules * shape.columns * scale * Math.min(
+        box.width / (modules * shape.columns * scale),
+        box.height / (modules * shape.rows * scale)
+      )),
+      displayHeight: Math.round(modules * shape.rows * scale * Math.min(
+        box.width / (modules * shape.columns * scale),
+        box.height / (modules * shape.rows * scale)
+      )),
       cell: scale / dpr,
       scale
     };
@@ -3541,7 +3560,7 @@ var qrcode = function() {
     if (!rateHint) return;
     const rate = currentLayout();
     let text = "理论速度：" + formatRate(rate.screen) + "（" + rate.bytes + " B × " + rate.codes + " 码 × " + rate.fps + " FPS）· 载荷约 " + formatRate(rate.payload);
-    if (rate.scale) text += " · QR V" + rate.version + " / " + rate.qrModules + " 模块 · 静区 " + rate.quiet + " · 每模块 " + rate.scale + " 设备像素 · 画布 " + rate.canvasDeviceWidth + "×" + rate.canvasDeviceHeight + " 设备像素";
+    if (rate.scale) text += " · QR V" + rate.version + " / " + rate.qrModules + " 模块 · 静区 " + rate.quiet + " · 栅格每模块 " + rate.scale + " 设备像素 · 显示 " + rate.displayWidth + "×" + rate.displayHeight + " CSS 像素";
     if (rate.codes === 4) text += rate.fps === 50
       ? "。50 FPS 实验档：60 Hz 下按 6 个 vsync 更新 5 次，四码整屏同换"
       : rate.fps === 60
