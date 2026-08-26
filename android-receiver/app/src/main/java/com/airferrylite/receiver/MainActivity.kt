@@ -104,6 +104,8 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var highBytesReceived = 0L
     @Volatile private var lastHighFrameBytes = 0
     @Volatile private var highLastFrameAt = 0L
+    @Volatile private var highLastUniqueAt = 0L
+    @Volatile private var highLastSolvedAt = 0L
     @Volatile private var invalidFrameSample = "—"
     private var lastHighUnique = 0
     private var lastHighSolved = 0
@@ -151,6 +153,9 @@ class MainActivity : AppCompatActivity() {
     private var cameraBoundAt = 0L
     private val dualPhaseRecovery = DualPhaseRecovery()
     private val quadPhaseRecovery = QuadPhaseRecovery()
+    private var quadCalibrationReadyAt = 0L
+    private var quadLastRephaseAt = 0L
+    private val lastQuadSlotHits = LongArray(4)
     private var restartDelayMs = PROCESS_RESTART_DELAY_MS
     private val restartProgressTick = object : Runnable {
         override fun run() {
@@ -427,9 +432,14 @@ class MainActivity : AppCompatActivity() {
         highBytesReceived = 0
         lastHighFrameBytes = 0
         highLastFrameAt = 0
+        highLastUniqueAt = 0
+        highLastSolvedAt = 0
         lastHighUnique = 0
         lastHighSolved = 0
         lastHighTotal = 0
+        quadCalibrationReadyAt = 0L
+        quadLastRephaseAt = 0L
+        lastQuadSlotHits.fill(0L)
         resetSpeed()
         scanSessionStartedAt = SystemClock.elapsedRealtime()
         showScanning()
@@ -494,16 +504,28 @@ class MainActivity : AppCompatActivity() {
         if (inHalRecoveryWarmup()) return
         val frames = stats.quadFrameCounts.sum()
         val hits = stats.quadFrameCounts.withIndex().sumOf { (codes, count) -> codes.toLong() * count }
-        val lastFrameAgeMs = if (highLastFrameAt == 0L) 0L else
-            (SystemClock.elapsedRealtime() - highLastFrameAt).coerceAtLeast(0L)
-        val opticalStall = quadPhaseRecovery.observeOpticalStall(
-            stats.quadFullRefresh60 && stats.quadCalibratedSlots >= 4,
-            stats.roiMisses,
-            lastFrameAgeMs
-        )
+        val now = SystemClock.elapsedRealtime()
         val calibrationComplete = stats.quadCalibratedSlots >= 4
+        if (calibrationComplete && quadCalibrationReadyAt == 0L) quadCalibrationReadyAt = now
+        val slotDeltas = stats.quadSlotHits.mapIndexed { index, hits ->
+            val delta = if (hits >= lastQuadSlotHits[index]) hits - lastQuadSlotHits[index] else hits
+            lastQuadSlotHits[index] = hits
+            delta
+        }
+        val inactiveSlots = slotDeltas.count { it == 0L }
+        val lastUniqueAgeMs = if (highLastUniqueAt == 0L) 0L else
+            (now - highLastUniqueAt).coerceAtLeast(0L)
+        val calibrationSettled = calibrationComplete && quadCalibrationReadyAt != 0L &&
+            now - quadCalibrationReadyAt >= QUAD_CALIBRATION_SETTLE_MS
+        val rephaseCooledDown = quadLastRephaseAt == 0L || now - quadLastRephaseAt >= QUAD_REPHASE_COOLDOWN_MS
+        val opticalStall = quadPhaseRecovery.observeOpticalStall(
+            stats.quadFullRefresh60 && calibrationSettled && rephaseCooledDown,
+            stats.roiMisses,
+            lastUniqueAgeMs,
+            inactiveSlots
+        )
         val poorEarlyPhase = !opticalStall && quadPhaseRecovery.observe(
-                stats.quadFullRefresh60 && calibrationComplete,
+                stats.quadFullRefresh60 && calibrationSettled && rephaseCooledDown,
                 frames,
                 hits,
                 lastHighSolved,
@@ -516,6 +538,8 @@ class MainActivity : AppCompatActivity() {
         } else {
             "四码高帧率早期命中率偏低，正在重新定相（${quadPhaseRecovery.attempts}/3）"
         }
+        quadLastRephaseAt = now
+        quadCalibrationReadyAt = now
         quadPhaseRecovery.rebase(frames, hits)
         restartScanner(countRecovery = false, forceRebind = true, preserveQuadCalibration = true)
     }
@@ -826,22 +850,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleHighSpeedFrame(bytes: ByteArray) {
+        val now = SystemClock.elapsedRealtime()
         highFrameCount += 1
         highBytesReceived += bytes.size.toLong()
         lastHighFrameBytes = bytes.size
-        highLastFrameAt = SystemClock.elapsedRealtime()
+        highLastFrameAt = now
         val update = highSpeedAssembler.accept(bytes)
         if (update.error != null) highProtocolErrors += 1
+        if (update.solvedBlocks > lastHighSolved) highLastSolvedAt = now
         lastHighSolved = update.solvedBlocks
         lastHighTotal = update.totalBlocks
         if (update.receivedFrames > lastHighUnique) {
             highUniqueFrameCount += (update.receivedFrames - lastHighUnique).toLong()
             lastHighUnique = update.receivedFrames
+            highLastUniqueAt = now
             if (highUniqueFrameCount >= HAL_WARMUP_MIN_UNIQUE) {
                 receiveSessionFromContinue = false
             }
         } else highDuplicateCount += 1
-        val now = SystemClock.elapsedRealtime()
         updateSpeed(update, bytes.size - HIGH_SPEED_HEADER_SIZE, now)
         val file = update.complete
         if (file == null && update.error == null && now - lastHighUiAt < UI_REFRESH_INTERVAL_MS) return
@@ -936,6 +962,11 @@ class MainActivity : AppCompatActivity() {
         highBytesReceived = 0
         lastHighFrameBytes = 0
         highLastFrameAt = 0
+        highLastUniqueAt = 0
+        highLastSolvedAt = 0
+        quadCalibrationReadyAt = 0L
+        quadLastRephaseAt = 0L
+        lastQuadSlotHits.fill(0L)
         invalidFrameCount.set(0)
         invalidFrameSample = "—"
         lastHighUnique = 0
@@ -1016,6 +1047,14 @@ class MainActivity : AppCompatActivity() {
         val stats = lastStats
         val now = SystemClock.elapsedRealtime()
         val highAge = if (highLastFrameAt == 0L) "—" else "${(now - highLastFrameAt).coerceAtLeast(0)} ms"
+        val uniqueAgeMs = if (highLastUniqueAt == 0L) null else (now - highLastUniqueAt).coerceAtLeast(0L)
+        val solvedAgeMs = if (highLastSolvedAt == 0L) null else (now - highLastSolvedAt).coerceAtLeast(0L)
+        val progressState = when {
+            uniqueAgeMs != null && uniqueAgeMs >= UNIQUE_STALL_LABEL_MS -> "光学/重复停顿"
+            solvedAgeMs != null && solvedAgeMs >= SOLVE_STALL_LABEL_MS -> "解块等待"
+            highUniqueFrameCount > 0L -> "推进中"
+            else -> "等待首帧"
+        }
         val sessionElapsed = when {
             completedHighSessionDurationMs >= 0L -> formatDuration(completedHighSessionDurationMs)
             sessionStartedAt != 0L -> formatDuration(now - sessionStartedAt)
@@ -1033,6 +1072,7 @@ class MainActivity : AppCompatActivity() {
             "ROI：${roiLabel(stats)} · 连续未命中 ${stats?.roiMisses ?: 0} · 布局 ${layoutLabel(stats)}",
             "码密度：${qrDensityLabel(lastHighFrameBytes)}",
             "协议：二维码 ${decodedQrCount.get()} · AFL2 ${highFrameCount} · 批次 ${protocolBatchCount.get()} · 唯一 ${highUniqueFrameCount} · 重复 ${highDuplicateCount} · 无效 ${invalidFrameCount.get()} · 错误 ${highProtocolErrors} · 队列 ${pendingProtocolFrames.get()} · 解块 ${lastHighSolved}/${lastHighTotal}",
+            "推进：$progressState · 最近唯一 ${uniqueAgeMs?.let { "$it ms" } ?: "—"} · 最近解块 ${solvedAgeMs?.let { "$it ms" } ?: "—"}",
             "高速会话：总耗时 $sessionElapsed · 最近帧 $highAge · 唯一载荷 ${formatBytes(sessionUniquePayloadBytes)} · 光学 ${formatBytes(highBytesReceived)} · 速度 ${latestSpeedLabel} · 会话 ${formatRate(sessionAverageBytesPerSecond)}"
         )
         if (stats?.dualLayout == true) {
@@ -1275,6 +1315,10 @@ class MainActivity : AppCompatActivity() {
         private const val CONTINUE_ANALYZER_SETTLE_MS = 500L
         private const val HAL_WARMUP_MS = 4000L
         private const val HAL_WARMUP_MIN_UNIQUE = 10L
+        private const val QUAD_CALIBRATION_SETTLE_MS = 1_500L
+        private const val QUAD_REPHASE_COOLDOWN_MS = 5_000L
+        private const val UNIQUE_STALL_LABEL_MS = 1_800L
+        private const val SOLVE_STALL_LABEL_MS = 1_800L
         private const val WATCHDOG_INTERVAL_MS = 1000L
         private const val SCAN_STALL_MS = 2000L
         private const val RECOVER_COOLDOWN_MS = 5000L

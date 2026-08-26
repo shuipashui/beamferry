@@ -47,6 +47,9 @@ assert.ok(androidAnalyzer.includes("quadGridOwner(imageWidth, imageHeight, cx, c
 assert.ok(androidMain.includes("quadCalibrationFrames") && androidMain.includes("quadCalibrationScans"), "quad diagnostics must report calibration cost");
 assert.ok(androidAnalyzer.includes("preserveQuadCalibration") && androidMain.includes("preserveQuadCalibration = true"), "quad camera rephasing must retain a proven four-slot calibration");
 assert.ok(androidAnalyzer.includes("QUAD_CALIBRATED_TILE_PAD = 1.35f"), "high-FPS quad must give calibrated slots enough crop margin for rolling shutter and point jitter");
+assert.ok(androidAnalyzer.includes("QUAD_WEAK_TILE_RECOVERY_PAD = 1.12f"), "only a persistently weak calibrated slot should receive a wider recovery crop");
+assert.ok(androidMain.includes("QUAD_CALIBRATION_SETTLE_MS = 1_500L"), "quad rephase must observe a settled calibrated grid before judging phase");
+assert.ok(androidMain.includes("highLastUniqueAt"), "quad optical stall detection must track unique symbols rather than any duplicate frame");
 assert.ok(androidAnalyzer.includes("QUAD_RECOVERY_INTERVAL = 12"), "experimental quad recovery scans must be rate limited");
 assert.ok(androidAnalyzer.includes("val recoverNow = calibrateNow || count == 0"), "quad recovery must run for missing calibration or complete misses");
 assert.ok(androidAnalyzer.includes("!quadFullRefresh60.get() ||"), "ordinary quad decoding must retain its original immediate recovery path");

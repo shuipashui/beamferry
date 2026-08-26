@@ -8,7 +8,8 @@ class QuadPhaseRecoveryTest {
     @Test
     fun sustainedLowYieldRequestsRephase() {
         val recovery = QuadPhaseRecovery()
-        assertTrue(recovery.observe(true, 60, 6, 10, 100, 80_000.0))
+        assertFalse(recovery.observe(true, 60, 6, 10, 100, 80_000.0))
+        assertTrue(recovery.observe(true, 120, 12, 10, 100, 80_000.0))
     }
 
     @Test
@@ -27,7 +28,8 @@ class QuadPhaseRecoveryTest {
     @Test
     fun attemptsAreBoundedAcrossRebases() {
         val recovery = QuadPhaseRecovery()
-        assertTrue(recovery.observe(true, 60, 0, 0, 100, 0.0))
+        assertFalse(recovery.observe(true, 60, 0, 0, 100, 0.0))
+        assertTrue(recovery.observe(true, 120, 0, 0, 100, 0.0))
         recovery.rebase(60, 0)
         assertFalse(recovery.observe(true, 120, 0, 0, 100, 0.0))
     }
@@ -35,12 +37,13 @@ class QuadPhaseRecoveryTest {
     @Test
     fun sustainedOpticalStallAllowsBoundedLateRephases() {
         val recovery = QuadPhaseRecovery()
-        assertTrue(recovery.observe(true, 60, 0, 0, 100, 0.0))
-        assertFalse(recovery.observeOpticalStall(true, 23, 2_000L))
-        assertFalse(recovery.observeOpticalStall(true, 30, 1_199L))
-        assertTrue(recovery.observeOpticalStall(true, 30, 2_000L))
-        assertTrue(recovery.observeOpticalStall(true, 30, 2_000L))
-        assertFalse(recovery.observeOpticalStall(true, 30, 2_000L))
+        assertFalse(recovery.observe(true, 60, 0, 0, 100, 0.0))
+        assertTrue(recovery.observe(true, 120, 0, 0, 100, 0.0))
+        assertFalse(recovery.observeOpticalStall(true, 23, 2_000L, 1))
+        assertFalse(recovery.observeOpticalStall(true, 30, 1_799L, 4))
+        assertTrue(recovery.observeOpticalStall(true, 30, 2_000L, 4))
+        assertTrue(recovery.observeOpticalStall(true, 0, 2_000L, 2))
+        assertFalse(recovery.observeOpticalStall(true, 30, 2_000L, 4))
     }
 
     @Test
@@ -54,10 +57,18 @@ class QuadPhaseRecoveryTest {
     @Test
     fun recordsYieldBeforeAndAfterTheSingleRephase() {
         val recovery = QuadPhaseRecovery()
-        assertTrue(recovery.observe(true, 60, 6, 0, 100, 0.0))
-        recovery.rebase(60, 6)
-        assertFalse(recovery.observe(true, 120, 96, 0, 100, 0.0))
+        assertFalse(recovery.observe(true, 60, 6, 0, 100, 0.0))
+        assertTrue(recovery.observe(true, 120, 12, 0, 100, 0.0))
+        recovery.rebase(120, 12)
+        assertFalse(recovery.observe(true, 180, 102, 0, 100, 0.0))
         assertTrue(recovery.beforeQrPerFrame == 0.1)
         assertTrue(recovery.afterQrPerFrame == 1.5)
+    }
+
+    @Test
+    fun oneWeakSlotDoesNotRephaseWhileUniqueSymbolsStillAdvance() {
+        val recovery = QuadPhaseRecovery()
+        assertFalse(recovery.observeOpticalStall(true, 0, 3_000L, 1))
+        assertFalse(recovery.observeOpticalStall(true, 30, 500L, 4))
     }
 }

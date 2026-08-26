@@ -2,9 +2,9 @@ package com.airferrylite.receiver
 
 /** Detects a sustained low-yield phase for the experimental four-code 60 FPS stream. */
 internal class QuadPhaseRecovery(
-    private val minimumFrames: Long = 45,
+    private val minimumFrames: Long = 60,
     private val poorQrPerFrame: Double = 0.20,
-    private val poorWindowsRequired: Int = 1,
+    private val poorWindowsRequired: Int = 2,
     private val maximumEarlyAttempts: Int = 1,
     private val maximumAttempts: Int = 3,
     private val maximumProgress: Double = 0.15,
@@ -83,10 +83,12 @@ internal class QuadPhaseRecovery(
     fun observeOpticalStall(
         enabled: Boolean,
         consecutiveMisses: Int,
-        lastFrameAgeMs: Long
+        lastUniqueAgeMs: Long,
+        inactiveSlots: Int
     ): Boolean {
         if (!enabled || attempts >= maximumAttempts) return false
-        if (consecutiveMisses < 24 || lastFrameAgeMs < 1_200L) return false
+        if (lastUniqueAgeMs < 1_800L) return false
+        if (consecutiveMisses < 24 && inactiveSlots < 2) return false
         poorWindows = 0
         beforeQrPerFrame = 0.0
         afterQrPerFrame = null

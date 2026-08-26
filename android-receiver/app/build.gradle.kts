@@ -5,8 +5,8 @@ android { namespace = "com.airferrylite.receiver"; compileSdk = 35
         applicationId = "com.airferrylite.receiver"
         minSdk = 29
         targetSdk = 35
-        versionCode = 147
-        versionName = "0.8.134-quad-wide-slots"
+        versionCode = 148
+        versionName = "0.8.135-quad-stall-classifier"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
     buildTypes { release { isMinifyEnabled = false; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro") } }
