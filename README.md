@@ -21,7 +21,7 @@ The web receiver requires HTTPS or `localhost` for camera access. Android 10 or 
 ## Features
 
 - Fully local file encoding and reconstruction
-- Single-code and 2x2 four-code layouts
+- Single-code, dual-code, and 2x2 four-code sender layouts
 - Binary AFL2 frames with systematic LT fountain coding
 - Reception from any point in the repeating stream
 - Optional gzip compression when it reduces the transfer size
@@ -31,7 +31,15 @@ The web receiver requires HTTPS or `localhost` for camera access. Android 10 or 
 - Legacy AFL1 receive compatibility
 - Installable, self-contained HTML sender
 
-The web receiver intentionally supports only single-code and four-code AFL2 streams. The Android receiver retains broader protocol compatibility.
+Layout support differs by receiver:
+
+| Layout | Sender | Web receiver | Android receiver | Status |
+| --- | --- | --- | --- | --- |
+| Single-code | Yes | Yes | Yes | Stable |
+| Dual-code | Yes | No | Yes | Experimental; horizontal two-code layout only |
+| Four-code | Yes | Yes | Yes | 30 FPS stable; 50/60 FPS experimental |
+
+The web receiver intentionally rejects dual-code AFL2 streams and asks the user to switch layouts. Dual-code remains available for Android testing and protocol compatibility.
 
 ## Quick Start
 
@@ -47,6 +55,7 @@ For a 60 Hz display, use these starting points:
 | --- | --- | --- |
 | Four-code | `2068 B / 30 FPS` | Default and most stable high-throughput profile |
 | Single-code | `2953 B / 30 FPS` | Easier framing; reduce density if focus or moire is poor |
+| Dual-code | `2068 B / 50 FPS` | Android only; experimental and sensitive to camera/display phase |
 | Four-code high FPS | `1465 B / 50 or 60 FPS` | Experimental; compare completed-session speed against 30 FPS |
 
 If decoding is intermittent, move farther from the display so the complete quiet zones remain visible, increase display brightness, avoid reflections, and reduce the bytes per code before increasing frame rate.
@@ -78,6 +87,8 @@ The browser build limits a transfer to 64 MiB. Refreshing or closing the page di
 ### Android
 
 The Android receiver analyzes the CameraX luminance plane directly and dispatches four-code crops to zxing-cpp decoders. The stable production profile remains four-code at 30 FPS. The 50/60 FPS full-refresh path is experimental and includes separate slot calibration and optical phase recovery; it does not alter the 30 FPS path.
+
+Dual-code uses two QR codes in the same horizontal row and is supported only by the Android receiver. Its 50/60 FPS path keeps a stable two-slot geometry and can rephase the camera after sustained partial frames. Results vary substantially with rolling shutter, so dual-code is not the default or a stable throughput claim.
 
 Use the in-app diagnostics when reporting performance. Include the payload size, sender FPS, camera resolution and FPS, QR/frame rate, four-slot hit counts, calibration count, unique/optical bytes, and completed-session speed.
 
