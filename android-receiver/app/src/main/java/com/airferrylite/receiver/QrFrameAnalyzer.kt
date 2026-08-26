@@ -118,6 +118,7 @@ class QrFrameAnalyzer(
     private val quadRecoveryScans = AtomicLong(0)
     private val quadSlotRecoveryScans = AtomicLong(0)
     private val quadSlotMissStreak = AtomicIntegerArray(4)
+    private val quadCalibrationTick = AtomicInteger(0)
     private val bootstrapRetryTick = AtomicInteger(0)
     private val bootstrapRetryScans = AtomicLong(0)
 
@@ -263,6 +264,7 @@ class QrFrameAnalyzer(
         quadRecoveryTick.set(0)
         quadRecoveryScans.set(0)
         quadSlotRecoveryScans.set(0)
+        quadCalibrationTick.set(0)
     }
 
     private fun chooseRegion(width: Int, height: Int): ScanRegion {
@@ -367,17 +369,24 @@ class QrFrameAnalyzer(
         if (lockedQuad) {
             val count = transferCount(merged)
             if (count > 0) quadRecoveryTick.set(0)
-            val recoverNow = count == 0 && (
+            val calibrationMask = quadCalibratedMask.get() and 0x0f
+            val calibrateNow = quadFullRefresh60.get() && calibrationMask != 0x0f &&
+                quadCalibrationTick.incrementAndGet() >= QUAD_CALIBRATION_INTERVAL
+            val recoverNow = calibrateNow || count == 0 && (
                 !quadFullRefresh60.get() ||
                     quadRecoveryTick.incrementAndGet() >= QUAD_RECOVERY_INTERVAL
                 )
             if (recoverNow) {
+                if (calibrateNow) quadCalibrationTick.set(0)
                 quadRecoveryTick.set(0)
                 if (quadFullRefresh60.get()) quadRecoveryScans.incrementAndGet()
                 val exclusive = ScanLayout.exclusiveQuadrants(region)
                 val overlays = ScanLayout.overlappingQuadrants(region)
                 val pending = overlays.indices.mapNotNull { index ->
-                    overlays[index].takeUnless { tileCovered(exclusive[index], merged, exclusive) }
+                    val alreadyCalibrated = (calibrationMask and (1 shl index)) != 0
+                    overlays[index].takeUnless {
+                        (calibrateNow && alreadyCalibrated) || tileCovered(exclusive[index], merged, exclusive)
+                    }
                 }
                 add(readCropsParallel(luma, pending.take(TILE_WORKERS), retryBinarizer = false))
             }
@@ -857,6 +866,7 @@ class QrFrameAnalyzer(
         private const val DUAL_RECOVERY_INTERVAL = 8
         private const val QUAD_RECOVERY_INTERVAL = 12
         private const val QUAD_SLOT_RECOVERY_MISSES = 12
+        private const val QUAD_CALIBRATION_INTERVAL = 8
         private const val BOOTSTRAP_RETRY_INTERVAL = 8
         private const val STABLE_CACHE_MISS_LIMIT = 3
     }

@@ -34,8 +34,10 @@ assert.ok(androidAnalyzer.includes("stableQuadTiles"), "experimental quad 60 FPS
 assert.ok(androidAnalyzer.includes("miss >= missLimit && !quadFullRefresh60.get()"), "high-FPS quad misses must not discard the locked four-tile grid");
 assert.ok(androidAnalyzer.includes("quadFullRefresh60.get() && stable != null"), "high-FPS quad sparse hits must not move an established grid");
 assert.ok(androidAnalyzer.includes("quadCalibratedMask"), "high-FPS quad must calibrate every physical slot before freezing the grid");
+assert.ok(androidAnalyzer.includes("QUAD_CALIBRATION_INTERVAL = 8"), "uncalibrated high-FPS quad slots must receive periodic wide probes");
+assert.ok(androidMain.includes("stats.quadCalibratedSlots >= 4"), "late camera rephasing must not erase an incomplete quad calibration");
 assert.ok(androidAnalyzer.includes("QUAD_RECOVERY_INTERVAL = 12"), "experimental quad recovery scans must be rate limited");
-assert.ok(androidAnalyzer.includes("val recoverNow = count == 0"), "experimental quad recovery must wait for complete misses");
+assert.ok(androidAnalyzer.includes("val recoverNow = calibrateNow || count == 0"), "quad recovery must run for missing calibration or complete misses");
 assert.ok(androidAnalyzer.includes("!quadFullRefresh60.get() ||"), "ordinary quad decoding must retain its original immediate recovery path");
 for (const needle of [
   "const MAX_FILE_SIZE = 64 * 1024 * 1024;",

@@ -497,7 +497,7 @@ class MainActivity : AppCompatActivity() {
         val lastFrameAgeMs = if (highLastFrameAt == 0L) 0L else
             (SystemClock.elapsedRealtime() - highLastFrameAt).coerceAtLeast(0L)
         val opticalStall = quadPhaseRecovery.observeOpticalStall(
-            stats.quadFullRefresh60,
+            stats.quadFullRefresh60 && stats.quadCalibratedSlots >= 4,
             stats.roiMisses,
             lastFrameAgeMs
         )
