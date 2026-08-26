@@ -114,7 +114,7 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var latestSpeedLabel = "实时 — · 平均 —"
     @Volatile private var highSpeedSessionActive = false
     private var requestedFps = 60
-    private var requestedAnalysisHeight = 1080
+    private var requestedAnalysisHeight = 1440
     private var fullDiagnostics = ""
     private var pendingSave: PendingSave? = null
     private var pendingSession: String? = null
@@ -207,7 +207,7 @@ class MainActivity : AppCompatActivity() {
         startReceiveButton = findViewById(R.id.startReceiveButton)
         fpsGroup = findViewById(R.id.fpsGroup)
         resolutionGroup = findViewById(R.id.resolutionGroup)
-        requestedAnalysisHeight = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getInt(PREF_ANALYSIS_HEIGHT, 1080).let { if (it == 1440) 1440 else 1080 }
+        requestedAnalysisHeight = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getInt(PREF_ANALYSIS_HEIGHT, 1440).let { if (it == 1080) 1080 else 1440 }
         resolutionGroup.check(if (requestedAnalysisHeight == 1080) R.id.resolution1080 else R.id.resolution1440)
         resolutionGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (!isChecked) return@addOnButtonCheckedListener
@@ -1009,7 +1009,7 @@ class MainActivity : AppCompatActivity() {
         }
         val lines = mutableListOf(
             "设备：${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE} · App ${BuildConfig.VERSION_NAME}",
-            "相机：${stats?.width ?: "?"}×${stats?.height ?: "?"} · 采集 ${stats?.captureFps?.let { "%.1f".format(it) } ?: "?"} FPS · 选择 $requestedFps · 分析目标 1920×$requestedAnalysisHeight · 目标 ${preferredFpsLabel()}",
+            "相机：实际 ${stats?.width ?: "?"}×${stats?.height ?: "?"} · 请求 1920×$requestedAnalysisHeight · 采集 ${stats?.captureFps?.let { "%.1f".format(it) } ?: "?"} FPS · 选择 $requestedFps · 目标 ${preferredFpsLabel()}",
             "分析流 FPS：$availableCameraFpsLabel",
             "分析：提交 ${stats?.submittedFrames ?: 0} · 完成 ${stats?.analysisFps?.let { "%.1f".format(it) } ?: "0"} FPS · 丢帧 ${stats?.droppedFrames ?: 0}",
             "解码：zxing-cpp · 平均 ${stats?.averageDecodeMs?.let { "%.1f ms".format(it) } ?: "—"} · 单码命中 ${stats?.singleHits ?: 0} · 多码扫描 ${stats?.multiScans ?: 0}（命中 ${stats?.multiHits ?: 0}${perFrameLabel(stats)}）",

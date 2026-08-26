@@ -79,9 +79,8 @@
   };
   const HIGH_QUEUE_LIMIT = 8;
   const QUIET_MODULES = 2;
-  // Optical experiment: tighter inter-code quiet zones make each QR larger
-  // on the same 2x2 canvas while retaining a white border around the canvas.
-  const QUAD_QUIET_MODULES = 2;
+  const MULTI_QUIET_MODULES = 4;
+  const QUAD_HIGH_FPS_QUIET_MODULES = 2;
   const LINK_QUIET_MODULES = 4;
   const COMMON_HZ = [60, 75, 90, 120, 144, 165, 240];
   const QUAD_PAIRS = [[0, 3], [1, 2]];
@@ -130,9 +129,13 @@
   }
 
   function layoutShape(codes) {
-    if (codes === 4) return { columns: 2, rows: 2, quiet: QUAD_QUIET_MODULES };
-    if (codes === 4 || codes === 2) return { columns: 2, rows: 2, quiet: QUAD_QUIET_MODULES };
+    if (codes === 4) return { columns: 2, rows: 2, quiet: usesQuadOpticalProfile() ? QUAD_HIGH_FPS_QUIET_MODULES : MULTI_QUIET_MODULES };
+    if (codes === 2) return { columns: 2, rows: 2, quiet: MULTI_QUIET_MODULES };
     return { columns: 1, rows: 1, quiet: QUIET_MODULES };
+  }
+
+  function usesQuadOpticalProfile() {
+    return codesPerScreen === 4 && Number(fps.value) >= 50;
   }
 
   function capFrameBytes(codes, frameBytes) {
@@ -978,7 +981,7 @@
     const quad = patterns.length === 4;
     document.documentElement.classList.toggle("quad-send", quad);
     document.body.classList.toggle("quad-send", quad);
-    document.body.classList.toggle("quad-optical", quad);
+    document.body.classList.toggle("quad-optical", quad && usesQuadOpticalProfile());
     viewer.classList.toggle("quad", quad);
     const metrics = layoutMetrics(patterns);
     canvas.style.maxWidth = "none";
