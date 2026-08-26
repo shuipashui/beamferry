@@ -26,12 +26,6 @@
 <body>
   <main class="app">
     <header><div class="mark">BF</div><div><h1>BeamFerry</h1><p>电脑屏幕接收端 · 单码 / 四码</p></div><a id="openSender" class="jump small" href="../sender/dist/beamferry-sender.html">打开发送端</a></header>
-    <section class="camera-card">
-      <video id="video" playsinline muted></video>
-      <canvas id="cameraFreeze" class="camera-freeze" hidden></canvas>
-      <canvas id="scanCanvas" hidden></canvas>
-      <div id="cameraHint" class="camera-hint">点击“选择屏幕源”，然后选择正在播放 BeamFerry 二维码的屏幕、窗口或浏览器标签页</div>
-    </section>
     <div class="actions">
       <button id="startBtn" class="primary">选择屏幕源</button>
       <button id="stopBtn" disabled>停止</button>
@@ -42,6 +36,12 @@
         <button type="button" id="fps60" class="small primary">60</button>
       </div>
     </div>
+    <section class="camera-card">
+      <video id="video" playsinline muted></video>
+      <canvas id="cameraFreeze" class="camera-freeze" hidden></canvas>
+      <canvas id="scanCanvas" hidden></canvas>
+      <div id="cameraHint" class="camera-hint">点击“选择屏幕源”，然后选择正在播放 BeamFerry 二维码的屏幕、窗口或浏览器标签页</div>
+    </section>
     <section class="card stats">
       <div><span>状态</span><strong id="status">等待开始</strong></div>
       <div><span>文件</span><strong id="fileName">-</strong></div>

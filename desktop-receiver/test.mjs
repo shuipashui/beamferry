@@ -12,6 +12,7 @@ const [app, html, serviceWorker, storage, desktopStyles] = await Promise.all([
 assert.match(app, /getDisplayMedia\s*\(/, "receiver must capture a screen source");
 assert.doesNotMatch(app, /getUserMedia\s*\(/, "receiver must not request a camera source");
 assert.match(html, /选择屏幕源/, "screen-source action must be visible");
+assert.ok(html.indexOf('class="actions"') < html.indexOf('class="camera-card"'), "narrow layouts must show screen-source actions before the preview");
 assert.match(html, /\.\.\/sender\/dist\/beamferry-sender\.html/, "sender link must resolve from the isolated directory");
 assert.match(serviceWorker, /beamferry-desktop-receiver-/, "cache namespace must be isolated");
 assert.match(serviceWorker, /!key\.startsWith\(CACHE_PREFIX\)/, "activation must preserve unrelated caches");
