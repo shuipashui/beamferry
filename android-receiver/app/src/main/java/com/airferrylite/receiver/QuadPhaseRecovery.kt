@@ -52,6 +52,11 @@ internal class QuadPhaseRecovery(
         }
         val frameDelta = (frames - lastFrames).coerceAtLeast(0L)
         val hitDelta = (hits - lastHits).coerceAtLeast(0L)
+        if (frames < lastFrames || hits < lastHits) {
+            lastFrames = frames
+            lastHits = hits
+            return false
+        }
         lastFrames = frames
         lastHits = hits
         if (frameDelta < minimumFrames) return false

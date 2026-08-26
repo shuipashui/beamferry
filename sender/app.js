@@ -602,11 +602,11 @@
     if (ordinal < transfer.total) return (0x80000000 | ordinal) >>> 0;
     const tail = ordinal - transfer.total;
     if (quadRefreshesAll() && Number(fps.value) >= 50) {
-      if (tail % 4 === 0) {
-        const replay = (Math.floor(tail / 4) * highReplayStep + Math.floor(transfer.total / 2)) % transfer.total;
+      if (tail % 8 === 0) {
+        const replay = (Math.floor(tail / 8) * highReplayStep + Math.floor(transfer.total / 2)) % transfer.total;
         return (0x80000000 | replay) >>> 0;
       }
-      return tail - Math.floor(tail / 4) - 1;
+      return tail - Math.floor(tail / 8) - 1;
     }
     return tail;
   }

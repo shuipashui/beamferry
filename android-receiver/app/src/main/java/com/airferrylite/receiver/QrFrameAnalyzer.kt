@@ -733,7 +733,7 @@ class QrFrameAnalyzer(
                                 imageWidth,
                                 imageHeight,
                                 1
-                            )?.let { ScanLayout.inflate(it, 1.18f, imageWidth, imageHeight) }
+                            )?.let { ScanLayout.inflate(it, QUAD_CALIBRATED_TILE_PAD, imageWidth, imageHeight) }
                             if (realTile != null) {
                                 updated[owner] = realTile
                                 nextMask = nextMask or (1 shl owner)
@@ -748,19 +748,35 @@ class QrFrameAnalyzer(
                 }
                 trackedTiles.set(next)
                 if (quadFullRefresh60.get() && next.size >= 4) {
-                    stableQuadTiles.set(next)
+                    var calibratedTiles = next
                     if (stable == null) {
+                        val updated = next.toMutableList()
                         var mask = 0
                         for (pointsForCode in perCode) {
                             if (pointsForCode.isEmpty()) continue
                             val cx = pointsForCode.map { it.first }.average().toFloat()
                             val cy = pointsForCode.map { it.second }.average().toFloat()
                             val owner = quadGridOwner(imageWidth, imageHeight, cx, cy)
-                            if (owner in 0..3) mask = mask or (1 shl owner)
+                            if (owner !in 0..3) continue
+                            val realTile = ScanLayout.regionFromPoints(
+                                pointsForCode,
+                                imageWidth,
+                                imageHeight,
+                                1
+                            )?.let {
+                                ScanLayout.inflate(it, QUAD_CALIBRATED_TILE_PAD, imageWidth, imageHeight)
+                            }
+                            if (realTile != null) {
+                                updated[owner] = realTile
+                                mask = mask or (1 shl owner)
+                            }
                         }
+                        calibratedTiles = updated
                         quadCalibratedMask.set(mask)
                         recordQuadCalibrationCompletion(mask)
                     }
+                    stableQuadTiles.set(calibratedTiles)
+                    trackedTiles.set(calibratedTiles)
                 }
             }
             dualStream.get() -> {
@@ -918,6 +934,7 @@ class QrFrameAnalyzer(
         private const val QUAD_RECOVERY_INTERVAL = 12
         private const val QUAD_SLOT_RECOVERY_MISSES = 12
         private const val QUAD_CALIBRATION_INTERVAL = 4
+        private const val QUAD_CALIBRATED_TILE_PAD = 1.35f
         private const val BOOTSTRAP_RETRY_INTERVAL = 8
         private const val STABLE_CACHE_MISS_LIMIT = 3
     }
