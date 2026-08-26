@@ -15,6 +15,10 @@ assert.match(app, /stopBtn\.onclick\s*=\s*\(\)\s*=>\s*stop\(\)/, "stop clicks mu
 assert.match(app, /pauseHighSpeedJobs\(\);\s*stopHighSpeedWorkers\(\);/, "a closed screen stream must discard old decoder workers");
 assert.ok(app.indexOf("startHighSpeedWorkers();") < app.indexOf("scheduleScan();", app.indexOf("async function start()")), "decoder workers must restart before the new capture loop");
 assert.match(app, /改选发送端窗口或整个屏幕/, "tab-capture stalls need actionable guidance");
+assert.match(app, /highScanMisses\s*>=\s*12[\s\S]*decodeBlindScreenQuadrants\(\)/, "dense desktop QR layouts need a high-resolution fallback scan");
+assert.match(app, /function desktopAcquisitionCrops\(\)/, "fallback scan must define overlapping desktop capture windows");
+assert.match(app, /frame\.width \* 0\.52/, "desktop capture windows must preserve dense QR module resolution");
+assert.match(app, /blindScreenScan\s*\?\s*" · 四区盲扫"/, "diagnostics must expose the high-resolution fallback");
 assert.match(html, /选择屏幕源/, "screen-source action must be visible");
 assert.ok(html.indexOf('class="actions"') < html.indexOf('class="camera-card"'), "narrow layouts must show screen-source actions before the preview");
 assert.match(html, /\.\.\/sender\/dist\/beamferry-sender\.html/, "sender link must resolve from the isolated directory");

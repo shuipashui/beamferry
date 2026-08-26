@@ -159,6 +159,7 @@
   let lastDecodeBackend = "—";
   let lastWorkerCount = 0;
   let captureViaCanvas = false;
+  let blindScreenScan = false;
   let lastCapturePath = "—";
   let lastUsedLuma = false;
   let lumaUnavailable = false;
@@ -617,6 +618,7 @@
         return;
       }
       if (codes.length) {
+        blindScreenScan = false;
         highScanMisses = 0;
         if (origin) updateHighScanRoiFromHits(codes, origin);
       } else {
@@ -717,6 +719,11 @@
       decodeQuadFrame();
       return;
     }
+    if (blindScreenScan || highScanMisses >= 12) {
+      blindScreenScan = true;
+      decodeBlindScreenQuadrants();
+      return;
+    }
     if (highGrabInFlight) return;
     if (highWorkerBusy.filter(Boolean).length >= HIGH_SINGLE_INFLIGHT) {
       workerBusyDrops += 1;
@@ -738,6 +745,43 @@
     void postHighSpeedRegion(slot, job.source, job.maxSymbols, job.retry, job.tile).finally(() => {
       highGrabInFlight = false;
     });
+  }
+
+  function decodeBlindScreenQuadrants() {
+    if (highGrabInFlight) return;
+    const slots = idleHighWorkerSlots();
+    if (!slots.length) {
+      workerBusyDrops += 1;
+      return;
+    }
+    const candidates = desktopAcquisitionCrops();
+    const crops = [];
+    for (let index = 0; index < Math.min(slots.length, candidates.length); index += 1) {
+      crops.push(candidates[highQuadCursor % candidates.length]);
+      highQuadCursor += 1;
+    }
+    highGrabInFlight = true;
+    void Promise.all(slots.slice(0, crops.length).map((slot, index) =>
+      postHighSpeedRegion(slot, crops[index], 1, true, false)
+    )).finally(() => {
+      highGrabInFlight = false;
+    });
+  }
+
+  function desktopAcquisitionCrops() {
+    const frame = fullFrameSource();
+    const cropW = Math.max(64, Math.round(frame.width * 0.52));
+    const cropH = Math.max(64, Math.round(frame.height * 0.68));
+    const centerX = Math.round((frame.width - cropW) / 2);
+    const bottomY = frame.height - cropH;
+    return [
+      { x: centerX, y: 0, width: cropW, height: cropH },
+      { x: centerX, y: bottomY, width: cropW, height: cropH },
+      { x: 0, y: 0, width: cropW, height: cropH },
+      { x: 0, y: bottomY, width: cropW, height: cropH },
+      { x: frame.width - cropW, y: 0, width: cropW, height: cropH },
+      { x: frame.width - cropW, y: bottomY, width: cropW, height: cropH }
+    ].map(clampScanRegion);
   }
 
   function nextHighScanJobs() {
@@ -2021,6 +2065,7 @@
     lastPostedScanSize = 0;
     highBitmapLock = false;
     highGrabInFlight = false;
+    blindScreenScan = false;
     highLocateLock = false;
     highLocateTick = 0;
     highQuadCursor = 0;
@@ -2576,6 +2621,7 @@
       "实时：采集 " + lastCaptureFps.toFixed(1) + " · 分析 " + lastDecodeFps.toFixed(1) + " · 有效码 " + lastValidFps.toFixed(1) + " FPS",
       "解码：" + backend + " · 取帧 " + lastCapturePath + " · Worker " + workerCount + " · 平均 " + avgDecode +
         " · 扫描 " + currentHighScanSize() + " · 布局 " + (highMultiLayout ? "四码" : "单码") +
+        (blindScreenScan ? " · 四区盲扫" : "") +
         (highScanRoi ? " · ROI" : " · 全图") +
         (highTrackedTiles ? " · 格 " + highTrackedTiles.filter(Boolean).length : "") +
         (highMultiLayout ? " · 校准 " + highTileProven.filter(Boolean).length + "/4" : "") +
