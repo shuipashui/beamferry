@@ -1,5 +1,7 @@
 # BeamFerry
 
+English | [简体中文](README.zh-CN.md)
+
 [![Web CI](https://github.com/shuipashui/beamferry/actions/workflows/web-ci.yml/badge.svg)](https://github.com/shuipashui/beamferry/actions/workflows/web-ci.yml)
 [![Android build](https://github.com/shuipashui/beamferry/actions/workflows/android-apk.yml/badge.svg)](https://github.com/shuipashui/beamferry/actions/workflows/android-apk.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
