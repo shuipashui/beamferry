@@ -133,6 +133,8 @@ function xorInto(dst: Uint32Array, src: Uint32Array): void {
   for (let i = 0; i < dst.length; i++) dst[i] = (dst[i]! ^ src[i]!) >>> 0;
 }
 
+const DENSE_TAIL_MAX_BLOCKS = 160;
+
 export class LTEncoder {
   readonly k: number;
   private readonly words: number;
@@ -180,6 +182,8 @@ export class LTDecoder {
   solvedCount = 0;
   framesNew = 0;
   framesDup = 0;
+  denseAttempts = 0;
+  denseSolved = 0;
 
   constructor(
     readonly k: number,
@@ -229,6 +233,59 @@ export class LTDecoder {
       }
       set.add(pf);
     }
+    this.tryDenseTail();
+  }
+
+  /** Finish a small stalled LT core with sparse GF(2) elimination. Peeling is
+   * cheaper and remains the primary path; this only runs near the tail, where
+   * enough independent equations may already exist without a degree-1 row. */
+  private tryDenseTail(): void {
+    const remaining = this.k - this.solvedCount;
+    if (remaining < 2 || remaining > DENSE_TAIL_MAX_BLOCKS || (this.framesNew & 3) !== 0) return;
+    const pending = new Set<PendingFrame>();
+    for (const frames of this.byBlock.values()) {
+      for (const frame of frames) pending.add(frame);
+    }
+    if (pending.size < remaining) return;
+    this.denseAttempts++;
+
+    const basis = new Map<number, PendingFrame>();
+    for (const source of pending) {
+      const row: PendingFrame = { idx: new Set(source.idx), words: source.words.slice() };
+      while (row.idx.size > 0) {
+        let pivot = Infinity;
+        for (const index of row.idx) pivot = Math.min(pivot, index);
+        const prior = basis.get(pivot);
+        if (!prior) {
+          basis.set(pivot, row);
+          break;
+        }
+        xorInto(row.words, prior.words);
+        for (const index of prior.idx) {
+          if (row.idx.has(index)) row.idx.delete(index);
+          else row.idx.add(index);
+        }
+      }
+    }
+    if (basis.size < remaining) return;
+
+    const recovered = new Map<number, Uint32Array>();
+    const pivots = [...basis.keys()].sort((a, b) => b - a);
+    for (const pivot of pivots) {
+      const row = basis.get(pivot)!;
+      const words = row.words.slice();
+      for (const index of row.idx) {
+        if (index === pivot) continue;
+        const known = recovered.get(index);
+        if (!known) return;
+        xorInto(words, known);
+      }
+      recovered.set(pivot, words);
+    }
+    if (recovered.size !== remaining) return;
+    const before = this.solvedCount;
+    for (const [index, words] of recovered) this.resolve(index, words);
+    this.denseSolved += this.solvedCount - before;
   }
 
   /** Peeling cascade: solve a block, reduce every frame waiting on it, repeat.

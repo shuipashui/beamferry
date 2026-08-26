@@ -2634,7 +2634,8 @@
         " · 连续未识别 " + highScanMisses,
       "协议：识别 " + highFramesSeen + " · 唯一 " + highUniqueFrames + " · 重复 " + highDuplicateFrames +
         " · 拒绝双码 " + unsupportedDualFrames + " · 无效 " + highInvalidFrames + " · 序列跳跃 " + highSequenceGaps +
-        " · 解块 " + (highDecoder?.solvedCount || 0) + "/" + (highDecoder?.k || 0),
+        " · 解块 " + (highDecoder?.solvedCount || 0) + "/" + (highDecoder?.k || 0) +
+        " · 尾部消元 " + (highDecoder?.denseAttempts || 0) + "/" + (highDecoder?.denseSolved || 0),
       "高速会话：最近帧 " + (highLastFrameAt ? Math.max(0, Math.round(performance.now() - highLastFrameAt)) + " ms" : "—") +
         " · 有效载荷 " + formatBytes(highProtocolBytes) + " · 速度 " + latestSpeedLabel +
         " · 会话 " + formatRate(sessionAverageBps) + " · 流 " + (highHeader ? H.streamIdentity(highHeader) : "—"),

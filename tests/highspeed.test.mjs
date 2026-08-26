@@ -70,6 +70,30 @@ for (let seq = 1; seq < Math.max(200, encoder.k * 8) && !decoder.isComplete; seq
 assert.equal(decoder.isComplete, true, "LT decoder did not recover after dropped frames");
 assert.deepEqual(Array.from(decoder.assemble()), Array.from(packed.container));
 
+// A large transfer can retain a small full-rank core with no degree-1 row.
+// Dense tail elimination should consume equations already received instead of
+// waiting for hundreds of additional optical frames.
+const tailK = 2975;
+const tailBlockLen = 64;
+const tailPayload = new Uint8Array(tailK * tailBlockLen);
+for (let index = 0; index < tailPayload.length; index += 1) tailPayload[index] = (index * 31 + 7) & 0xff;
+const tailEncoder = new H.LTEncoder(tailPayload, tailBlockLen, 24498);
+const tailDecoder = new H.LTDecoder(tailEncoder.k, tailBlockLen, 24498, tailPayload.length);
+for (let index = 0; index < tailEncoder.k; index += 1) {
+  if (index % 4 === 0) continue;
+  const seq = (0x80000000 | index) >>> 0;
+  tailDecoder.addFrame(seq, tailEncoder.encode(seq));
+}
+for (let tail = 0; tail < tailEncoder.k * 3 && !tailDecoder.isComplete; tail += 1) {
+  const seq = tail % 8 === 0
+    ? (0x80000000 | ((Math.floor(tail / 8) * 1839 + Math.floor(tailEncoder.k / 2)) % tailEncoder.k)) >>> 0
+    : tail - Math.floor(tail / 8) - 1;
+  tailDecoder.addFrame(seq, tailEncoder.encode(seq));
+}
+assert.equal(tailDecoder.isComplete, true, "dense LT tail recovery did not complete a stalled large transfer");
+assert.ok(tailDecoder.denseSolved >= 100, "dense LT tail recovery must solve a material stalled core");
+assert.deepEqual(Array.from(tailDecoder.assemble()), Array.from(tailPayload));
+
 const qr = context.qrcode(40, "L");
 qr.addBytes(first);
 qr.make(4);
