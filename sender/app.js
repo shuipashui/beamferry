@@ -106,6 +106,7 @@
   let queueSerial = 0;
   let encodeInflight = 0;
   let highNextSeq = 0;
+  let highReplayStep = 1;
   let highNextPair = 0;
   let highNextQuadRotation = 0;
   let codesPerScreen = 1;
@@ -335,6 +336,7 @@
       const prepared = { encoding: packed.compression, originalSize: payload.bytes.length, savedBytes: payload.bytes.length - packed.transmittedSize };
       resetEncodePipeline();
       highNextSeq = 0;
+      highReplayStep = coprimeReplayStep(transfer.total);
       highNextPair = 0;
       highNextQuadRotation = 0;
       livePatterns = [null, null, null, null];
@@ -597,9 +599,27 @@
 
   function nextFrameSeq() {
     const ordinal = highNextSeq++;
-    return ordinal < transfer.total
-      ? (0x80000000 | ordinal) >>> 0
-      : ordinal - transfer.total;
+    if (ordinal < transfer.total) return (0x80000000 | ordinal) >>> 0;
+    const tail = ordinal - transfer.total;
+    if (quadRefreshesAll() && Number(fps.value) >= 50) {
+      if (tail % 4 === 0) {
+        const replay = (Math.floor(tail / 4) * highReplayStep + Math.floor(transfer.total / 2)) % transfer.total;
+        return (0x80000000 | replay) >>> 0;
+      }
+      return tail - Math.floor(tail / 4) - 1;
+    }
+    return tail;
+  }
+
+  function coprimeReplayStep(total) {
+    if (total <= 1) return 1;
+    const gcd = (a, b) => {
+      while (b) [a, b] = [b, a % b];
+      return a;
+    };
+    let step = Math.max(1, Math.floor(total * 0.61803398875)) | 1;
+    while (step > 1 && gcd(step, total) !== 1) step -= 2;
+    return Math.max(1, step);
   }
 
   function takePackedCode() {
