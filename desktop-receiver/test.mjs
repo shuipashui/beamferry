@@ -29,7 +29,7 @@ assert.match(app, /for \(let index = 0; index < HIGH_SPEED_WORKERS; index \+= 1\
 assert.match(app, /const rollingRates = \[0, 0, 0, 0, 0\]/, "speed display must smooth multiple recent samples");
 assert.match(app, /speedBps = speedBps \? speedBps \* 0\.6 \+ sample \* 0\.4 : sample/, "realtime speed must use an EWMA instead of a raw one-second sample");
 assert.match(app, /if \(highWorkers\.length\) \{[\s\S]*setTimeout\([\s\S]*HIGH_SPEED_POLL_MS\)/, "high-speed scanning must use an independent bounded pump instead of throttled video-frame callbacks");
-assert.match(app, /mediaTime > lastHighMediaTime \+ 0\.0005/, "high-speed scanning must not decode the same captured video frame twice");
+assert.match(app, /const HIGH_SPEED_POLL_MS = 14/, "high-speed scanning must balance missed frames against duplicate captures");
 assert.match(html, /选择屏幕源/, "screen-source action must be visible");
 assert.match(html, /id="openSender"[^>]*target="_blank"[^>]*rel="noopener"/, "sender must open without navigating away from the receiver");
 assert.match(html, /id="download"[^>]*aria-disabled="true"/, "download must start disabled");

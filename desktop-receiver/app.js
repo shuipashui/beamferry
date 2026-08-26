@@ -69,7 +69,7 @@
   const HIGH_SINGLE_INFLIGHT = 4;
   const HIGH_QUAD_INFLIGHT = 3;
   const HIGH_QUAD_GRAB_MS = 12;
-  const HIGH_SPEED_POLL_MS = 8;
+  const HIGH_SPEED_POLL_MS = 14;
 
   let stream = null;
   let scanTimer = 0;
@@ -167,7 +167,6 @@
   let highGrabInFlight = false;
   let highQuadJobsInFlight = 0;
   let lastQuadGrabAt = 0;
-  let lastHighMediaTime = -1;
   let lastNativeLocate = 0;
   let highTileProven = [false, false, false, false];
   let highQuadFrozen = false;
@@ -467,7 +466,6 @@
     highBitmapLock = false;
     highGrabInFlight = false;
     highQuadJobsInFlight = 0;
-    lastHighMediaTime = -1;
     highLocateLock = false;
     highLocateTick = 0;
     lastNativeLocate = 0;
@@ -530,11 +528,7 @@
       scanTimer = setTimeout(() => {
         scanTimer = 0;
         lastCameraLiveAt = performance.now();
-        const mediaTime = video.currentTime;
-        if (mediaTime > lastHighMediaTime + 0.0005 && scanWithHighSpeedWorkers()) {
-          lastHighMediaTime = mediaTime;
-          recordCapturedFrame();
-        }
+        if (scanWithHighSpeedWorkers()) recordCapturedFrame();
         scheduleScan();
       }, HIGH_SPEED_POLL_MS);
       return;
