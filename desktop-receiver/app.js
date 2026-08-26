@@ -287,17 +287,10 @@
       }
       const previewFpsCap = previewFps === 30 ? 30 : 60;
       cameraRequestedFps = previewFpsCap;
-      const captureController = typeof window.CaptureController === "function" &&
-        typeof window.CaptureController.prototype?.setFocusBehavior === "function"
-        ? new window.CaptureController()
-        : null;
-      try { captureController?.setFocusBehavior("focus-capturing-application"); } catch (_) {}
-      const displayOptions = {
+      stream = await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: { ideal: previewFpsCap, max: previewFpsCap } },
         audio: false
-      };
-      if (captureController) displayOptions.controller = captureController;
-      stream = await navigator.mediaDevices.getDisplayMedia(displayOptions);
+      });
       lastUsedLuma = false;
       lumaUnavailable = false;
       resetScanStats();

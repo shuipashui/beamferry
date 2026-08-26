@@ -29,7 +29,6 @@ assert.match(html, /选择屏幕源/, "screen-source action must be visible");
 assert.match(html, /id="openSender"[^>]*target="_blank"[^>]*rel="noopener"/, "sender must open without navigating away from the receiver");
 assert.match(html, /id="download"[^>]*aria-disabled="true"/, "download must start disabled");
 assert.match(app, /reset\(\);\s*startInFlight = true;/, "choosing a new screen source must clear the previous transfer first");
-assert.match(app, /focus-capturing-application/, "screen capture should retain focus on the receiver when supported");
 assert.match(app, /if \(!download\.hasAttribute\("href"\)\) event\.preventDefault\(\)/, "disabled downloads must not navigate");
 assert.ok(html.indexOf('class="actions"') < html.indexOf('class="camera-card"'), "narrow layouts must show screen-source actions before the preview");
 assert.match(html, /\.\.\/sender\/dist\/beamferry-sender\.html/, "sender link must resolve from the isolated directory");
