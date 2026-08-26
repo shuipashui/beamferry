@@ -36,6 +36,9 @@ assert.ok(androidAnalyzer.includes("quadFullRefresh60.get() && stable != null"),
 assert.ok(androidAnalyzer.includes("quadCalibratedMask"), "high-FPS quad must calibrate every physical slot before freezing the grid");
 assert.ok(androidAnalyzer.includes("QUAD_CALIBRATION_INTERVAL = 8"), "uncalibrated high-FPS quad slots must receive periodic wide probes");
 assert.ok(androidMain.includes("stats.quadCalibratedSlots >= 4"), "late camera rephasing must not erase an incomplete quad calibration");
+assert.ok(androidAnalyzer.includes("val recoveryRegion = if (calibrateNow)"), "quad calibration probes must use the full center square rather than a biased tracked ROI");
+assert.ok(androidAnalyzer.includes("quadGridOwner(imageWidth, imageHeight, cx, cy)"), "real quad hits must calibrate slots by physical quadrant rather than inferred crop containment");
+assert.ok(androidMain.includes("quadCalibrationFrames") && androidMain.includes("quadCalibrationScans"), "quad diagnostics must report calibration cost");
 assert.ok(androidAnalyzer.includes("QUAD_RECOVERY_INTERVAL = 12"), "experimental quad recovery scans must be rate limited");
 assert.ok(androidAnalyzer.includes("val recoverNow = calibrateNow || count == 0"), "quad recovery must run for missing calibration or complete misses");
 assert.ok(androidAnalyzer.includes("!quadFullRefresh60.get() ||"), "ordinary quad decoding must retain its original immediate recovery path");

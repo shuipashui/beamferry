@@ -57,7 +57,9 @@ data class ScanStats(
     val quadRecoveryScans: Long = 0,
     val quadSlotRecoveryScans: Long = 0,
     val quadStableCacheAvailable: Boolean = false,
-    val quadCalibratedSlots: Int = 0
+    val quadCalibratedSlots: Int = 0,
+    val quadCalibrationFrames: Long = 0,
+    val quadCalibrationScans: Long = 0
 )
 
 /** Latest-frame zxing-cpp scan on the CameraX analyzer thread. */
@@ -119,6 +121,8 @@ class QrFrameAnalyzer(
     private val quadSlotRecoveryScans = AtomicLong(0)
     private val quadSlotMissStreak = AtomicIntegerArray(4)
     private val quadCalibrationTick = AtomicInteger(0)
+    private val quadCalibrationCompletedAtFrame = AtomicLong(0)
+    private val quadCalibrationCompletedAtScan = AtomicLong(0)
     private val bootstrapRetryTick = AtomicInteger(0)
     private val bootstrapRetryScans = AtomicLong(0)
 
@@ -265,6 +269,8 @@ class QrFrameAnalyzer(
         quadRecoveryScans.set(0)
         quadSlotRecoveryScans.set(0)
         quadCalibrationTick.set(0)
+        quadCalibrationCompletedAtFrame.set(0)
+        quadCalibrationCompletedAtScan.set(0)
     }
 
     private fun chooseRegion(width: Int, height: Int): ScanRegion {
@@ -380,15 +386,22 @@ class QrFrameAnalyzer(
                 if (calibrateNow) quadCalibrationTick.set(0)
                 quadRecoveryTick.set(0)
                 if (quadFullRefresh60.get()) quadRecoveryScans.incrementAndGet()
-                val exclusive = ScanLayout.exclusiveQuadrants(region)
-                val overlays = ScanLayout.overlappingQuadrants(region)
+                val recoveryRegion = if (calibrateNow) {
+                    ScanLayout.centerSquare(luma.width, luma.height)
+                } else region
+                val exclusive = ScanLayout.exclusiveQuadrants(recoveryRegion)
+                val overlays = ScanLayout.overlappingQuadrants(recoveryRegion)
                 val pending = overlays.indices.mapNotNull { index ->
                     val alreadyCalibrated = (calibrationMask and (1 shl index)) != 0
                     overlays[index].takeUnless {
                         (calibrateNow && alreadyCalibrated) || tileCovered(exclusive[index], merged, exclusive)
                     }
                 }
-                add(readCropsParallel(luma, pending.take(TILE_WORKERS), retryBinarizer = false))
+                add(readCropsParallel(
+                    luma,
+                    pending.take(TILE_WORKERS),
+                    retryBinarizer = calibrateNow
+                ))
             }
             return merged
         }
@@ -694,19 +707,28 @@ class QrFrameAnalyzer(
                     if (calibrated == 0x0f) {
                         stable
                     } else {
-                        val followed = ScanLayout.followContainedHits(base, perCode, imageWidth, imageHeight)
+                        val updated = stable.toMutableList()
                         var nextMask = calibrated
                         for (pointsForCode in perCode) {
                             if (pointsForCode.isEmpty()) continue
                             val cx = pointsForCode.map { it.first }.average().toFloat()
                             val cy = pointsForCode.map { it.second }.average().toFloat()
-                            val owner = ScanLayout.ownerIndex(base, cx, cy)
-                            if (owner in 0..3) nextMask = nextMask or (1 shl owner)
+                            val owner = quadGridOwner(imageWidth, imageHeight, cx, cy)
+                            if (owner !in 0..3 || (calibrated and (1 shl owner)) != 0) continue
+                            val realTile = ScanLayout.regionFromPoints(
+                                pointsForCode,
+                                imageWidth,
+                                imageHeight,
+                                1
+                            )?.let { ScanLayout.inflate(it, 1.18f, imageWidth, imageHeight) }
+                            if (realTile != null) {
+                                updated[owner] = realTile
+                                nextMask = nextMask or (1 shl owner)
+                            }
                         }
                         quadCalibratedMask.set(nextMask)
-                        List(4) { index ->
-                            if ((calibrated and (1 shl index)) != 0) stable[index] else followed[index]
-                        }
+                        recordQuadCalibrationCompletion(nextMask)
+                        updated
                     }
                 } else {
                     ScanLayout.followContainedHits(base, perCode, imageWidth, imageHeight)
@@ -720,10 +742,11 @@ class QrFrameAnalyzer(
                             if (pointsForCode.isEmpty()) continue
                             val cx = pointsForCode.map { it.first }.average().toFloat()
                             val cy = pointsForCode.map { it.second }.average().toFloat()
-                            val owner = ScanLayout.ownerIndex(next, cx, cy)
+                            val owner = quadGridOwner(imageWidth, imageHeight, cx, cy)
                             if (owner in 0..3) mask = mask or (1 shl owner)
                         }
                         quadCalibratedMask.set(mask)
+                        recordQuadCalibrationCompletion(mask)
                     }
                 }
             }
@@ -779,6 +802,19 @@ class QrFrameAnalyzer(
         }
     }
 
+    private fun quadGridOwner(width: Int, height: Int, x: Float, y: Float): Int {
+        val grid = ScanLayout.centerSquare(width, height)
+        val midX = grid.left + grid.width / 2f
+        val midY = grid.top + grid.height / 2f
+        return (if (y < midY) 0 else 2) + if (x < midX) 0 else 1
+    }
+
+    private fun recordQuadCalibrationCompletion(mask: Int) {
+        if ((mask and 0x0f) != 0x0f) return
+        quadCalibrationCompletedAtFrame.compareAndSet(0L, (0 until 5).sumOf { quadFrameCounts.get(it) })
+        quadCalibrationCompletedAtScan.compareAndSet(0L, quadRecoveryScans.get())
+    }
+
     private fun reportStatsIfDue(width: Int, height: Int) {
         val now = SystemClock.elapsedRealtime()
         val startedAt = statsWindowStartedAt.get()
@@ -828,7 +864,9 @@ class QrFrameAnalyzer(
                 quadRecoveryScans = quadRecoveryScans.get(),
                 quadSlotRecoveryScans = quadSlotRecoveryScans.get(),
                 quadStableCacheAvailable = (stableQuadTiles.get()?.size ?: 0) >= 4,
-                quadCalibratedSlots = Integer.bitCount(quadCalibratedMask.get() and 0x0f)
+                quadCalibratedSlots = Integer.bitCount(quadCalibratedMask.get() and 0x0f),
+                quadCalibrationFrames = quadCalibrationCompletedAtFrame.get(),
+                quadCalibrationScans = quadCalibrationCompletedAtScan.get()
             )
         )
     }

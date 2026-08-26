@@ -501,8 +501,9 @@ class MainActivity : AppCompatActivity() {
             stats.roiMisses,
             lastFrameAgeMs
         )
+        val calibrationComplete = stats.quadCalibratedSlots >= 4
         val poorEarlyPhase = !opticalStall && quadPhaseRecovery.observe(
-                stats.quadFullRefresh60,
+                stats.quadFullRefresh60 && calibrationComplete,
                 frames,
                 hits,
                 lastHighSolved,
@@ -1040,7 +1041,10 @@ class MainActivity : AppCompatActivity() {
             val phaseBefore = quadPhaseRecovery.beforeQrPerFrame?.let { String.format("%.2f", it) } ?: "—"
             val phaseAfter = quadPhaseRecovery.afterQrPerFrame?.let { String.format("%.2f", it) } ?: "—"
             lines.add(5, "四码高速：帧 0/1/2/3/4=$frameCounts · 补扫 ${stats.quadRecoveryScans} · 单格加强 ${stats.quadSlotRecoveryScans} · 重新定相 ${quadPhaseRecovery.attempts}/3 · 前/后 $phaseBefore/$phaseAfter QR/帧")
-            lines.add(6, "四码格位：左上/右上/左下/右下=$slotHits · 格位校准 ${stats.quadCalibratedSlots}/4 · 稳定缓存 ${if (stats.quadStableCacheAvailable) "有" else "无"}")
+            val calibrationCost = if (stats.quadCalibratedSlots >= 4) {
+                " · 完成于 ${stats.quadCalibrationFrames} 帧/${stats.quadCalibrationScans} 补扫"
+            } else ""
+            lines.add(6, "四码格位：左上/右上/左下/右下=$slotHits · 格位校准 ${stats.quadCalibratedSlots}/4$calibrationCost · 稳定缓存 ${if (stats.quadStableCacheAvailable) "有" else "无"}")
         }
         if (invalidFrameCount.get() > 0) lines.add("无效样本：$invalidFrameSample")
         fullDiagnostics = lines.joinToString("\n")
