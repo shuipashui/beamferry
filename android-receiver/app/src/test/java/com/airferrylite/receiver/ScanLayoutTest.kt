@@ -285,8 +285,9 @@ class ScanLayoutTest {
         assertEquals(2, followed.size)
         assertTrue(followed[0].left + followed[0].width / 2 > pair[0].left + pair[0].width / 2)
         assertTrue(followed[1].left + followed[1].width / 2 > pair[1].left + pair[1].width / 2)
-        val oldGap = pair[1].top - pair[0].top
-        val newGap = followed[1].top - followed[0].top
+        val oldGap = (pair[1].top + pair[1].height / 2) - (pair[0].top + pair[0].height / 2)
+        val newGap = (followed[1].top + followed[1].height / 2) -
+            (followed[0].top + followed[0].height / 2)
         assertTrue(kotlin.math.abs(newGap - oldGap) < 40)
     }
 
