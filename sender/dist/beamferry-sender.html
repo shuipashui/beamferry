@@ -2993,11 +2993,15 @@ var qrcode = function() {
     if (ordinal < transfer.total) return (0x80000000 | ordinal) >>> 0;
     const tail = ordinal - transfer.total;
     if (quadRefreshesAll() && Number(fps.value) >= 50) {
-      if (tail % 8 === 0) {
-        const replay = (Math.floor(tail / 8) * highReplayStep + Math.floor(transfer.total / 2)) % transfer.total;
+      // Once the systematic pass ends, alternate source-block replays with
+      // fountain repairs. Screen capture commonly misses whole display frames;
+      // replaying only one source block in eight makes the last few percent
+      // wait on LT peeling for much longer than the main transfer.
+      if (tail % 2 === 0) {
+        const replay = (Math.floor(tail / 2) * highReplayStep + Math.floor(transfer.total / 2)) % transfer.total;
         return (0x80000000 | replay) >>> 0;
       }
-      return tail - Math.floor(tail / 8) - 1;
+      return Math.floor(tail / 2);
     }
     return tail;
   }

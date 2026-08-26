@@ -11,6 +11,15 @@
 
 也可以把整个目录部署到 HTTPS 静态站点。屏幕捕获 API 只在 HTTPS 或 localhost 安全上下文中可用，不能直接双击 `index.html` 使用。
 
+## GitHub Pages
+
+仓库内的 `desktop-pages.yml` 会在 `main` 分支相关文件变化时自动构建并部署：
+
+- 站点根路径：BeamFerry 发送端。
+- `/desktop-receiver/`：电脑屏幕接收端。
+
+首次使用时，在 GitHub 仓库的 **Settings → Pages → Build and deployment** 中将 Source 设为 **GitHub Actions**，随后运行 **Desktop receiver Pages** workflow。
+
 ## 隔离边界
 
 - 所有运行文件、解码 worker、WASM 和持久化代码都位于本目录。
