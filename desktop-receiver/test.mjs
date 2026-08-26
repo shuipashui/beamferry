@@ -25,6 +25,9 @@ assert.match(app, /highQuadJobsInFlight\s*>=\s*HIGH_QUAD_INFLIGHT/, "quad backpr
 assert.match(app, /highQuadJobsInFlight \+= 1;[\s\S]*highQuadJobsInFlight = Math\.max\(0, highQuadJobsInFlight - 1\)/, "quad frame jobs must release their pipeline slot");
 assert.match(app, /const slot = slots\[0\];\s*highWorkerBusy\[slot\] = true;/, "quad frame capture must reserve a worker before awaiting a bitmap");
 assert.match(app, /" · 帧任务 " \+ highQuadJobsInFlight/, "diagnostics must expose quad pipeline occupancy");
+assert.match(app, /for \(let index = 0; index < HIGH_SPEED_WORKERS; index \+= 1\) startHighSpeedWorker\(index\)/, "desktop decoder workers must boot in parallel");
+assert.match(app, /const rollingRates = \[0, 0, 0, 0, 0\]/, "speed display must smooth multiple recent samples");
+assert.match(app, /speedBps = speedBps \? speedBps \* 0\.6 \+ sample \* 0\.4 : sample/, "realtime speed must use an EWMA instead of a raw one-second sample");
 assert.match(html, /选择屏幕源/, "screen-source action must be visible");
 assert.match(html, /id="openSender"[^>]*target="_blank"[^>]*rel="noopener"/, "sender must open without navigating away from the receiver");
 assert.match(html, /id="download"[^>]*aria-disabled="true"/, "download must start disabled");

@@ -97,7 +97,7 @@
   let sessionStartedAt = 0;
   let sessionUniqueBytes = 0;
   let sessionAverageBps = 0;
-  const rollingRates = [0, 0, 0];
+  const rollingRates = [0, 0, 0, 0, 0];
   let rollingCount = 0;
   let rollingIndex = 0;
   let latestSpeedLabel = "实时 — · 平均 —";
@@ -567,7 +567,7 @@
   function startHighSpeedWorkers() {
     if (highWorkersDisabled || highWorkers.length) return;
     try {
-      startHighSpeedWorker(0);
+      for (let index = 0; index < HIGH_SPEED_WORKERS; index += 1) startHighSpeedWorker(index);
       watchWorkerBoot();
     } catch (_) {
       disableHighSpeedWorkers();
@@ -2556,9 +2556,9 @@
     sessionUniqueBytes += byteCount;
     speedWindowBytes += byteCount;
     const elapsed = now - speedWindowStartedAt;
-    if (elapsed < 1000) return;
+    if (elapsed < 1200) return;
     const sample = speedWindowBytes / (elapsed / 1000);
-    speedBps = sample;
+    speedBps = speedBps ? speedBps * 0.6 + sample * 0.4 : sample;
     rollingRates[rollingIndex] = sample;
     rollingIndex = (rollingIndex + 1) % rollingRates.length;
     rollingCount = Math.min(rollingRates.length, rollingCount + 1);
