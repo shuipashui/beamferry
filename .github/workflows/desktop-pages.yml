@@ -42,15 +42,17 @@ jobs:
       - name: Install dependencies and test
         run: npm ci && npm test
 
-      - name: Build sender
-        run: npm run build:sender
+      - name: Build web receivers and sender
+        run: npm run build
 
       - name: Assemble Pages site
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p _site/desktop-receiver _site/sender/dist
-          cp sender/dist/beamferry-sender.html _site/index.html
+          mkdir -p _site/desktop-receiver _site/sender/dist _site/vendor
+          cp index.html app.js styles.css sw.js manifest.webmanifest protocol.js highspeed-protocol.js receiver-storage.js decoder-worker.js highspeed-decoder-worker.js _site/
+          cp -r vendor/. _site/vendor/
+          cp robots.txt sitemap.xml _site/
           cp sender/dist/beamferry-sender.html _site/sender/dist/beamferry-sender.html
           cp -r desktop-receiver/. _site/desktop-receiver/
           rm -f _site/desktop-receiver/serve.mjs _site/desktop-receiver/test.mjs _site/desktop-receiver/README.md

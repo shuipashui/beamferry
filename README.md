@@ -3,6 +3,7 @@
 English | [简体中文](README.zh-CN.md)
 
 [![Web CI](https://github.com/shuipashui/beamferry/actions/workflows/web-ci.yml/badge.svg)](https://github.com/shuipashui/beamferry/actions/workflows/web-ci.yml)
+[![Desktop Pages](https://github.com/shuipashui/beamferry/actions/workflows/desktop-pages.yml/badge.svg)](https://github.com/shuipashui/beamferry/actions/workflows/desktop-pages.yml)
 [![Android build](https://github.com/shuipashui/beamferry/actions/workflows/android-apk.yml/badge.svg)](https://github.com/shuipashui/beamferry/actions/workflows/android-apk.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -12,8 +13,9 @@ BeamFerry transfers a file from a computer screen to a phone camera as a live QR
 
 ## Try It
 
+- [Open the web camera receiver](https://shuipashui.github.io/beamferry/)
 - [Open the sender](https://shuipashui.github.io/beamferry/sender/dist/beamferry-sender.html)
-- [Open the web receiver](https://shuipashui.github.io/beamferry/)
+- [Open the desktop screen receiver](https://shuipashui.github.io/beamferry/desktop-receiver/)
 - Android debug APKs are produced by the [Build Android receiver](https://github.com/shuipashui/beamferry/actions/workflows/android-apk.yml) workflow as the `beamferry-android-debug` artifact.
 
 The web receiver requires HTTPS or `localhost` for camera access. Android 10 or later is required for the native receiver.
@@ -29,6 +31,7 @@ Current release baseline: Android `0.8.135-quad-stall-classifier` (`versionCode 
 - Optional gzip compression when it reduces the transfer size
 - SHA-256 verification before exposing the recovered file
 - Browser receiver with Web Worker and ZXing WASM decoding
+- Desktop browser receiver using screen capture only, with single-code and four-code AFL2 decoding
 - Native Android receiver using CameraX Y-plane analysis and zxing-cpp
 - Legacy AFL1 receive compatibility
 - Installable, self-contained HTML sender
@@ -86,9 +89,15 @@ The browser receiver uses the latest available video frames and bounded worker c
 
 The browser build limits a transfer to 64 MiB. Refreshing or closing the page discards an active AFL2 reconstruction.
 
+### Desktop screen receiver
+
+`desktop-receiver/` captures a shared screen, window, or browser tab instead of requesting camera access. Its four-code path uses four parallel WASM workers, bounded pipelined bitmap capture, fixed-slot ROI decoding, and a sparse GF(2) elimination fallback for stalled LT tails. The hosted receiver requires HTTPS; local development can use `node desktop-receiver/serve.mjs` from the repository root.
+
+The verified Windows/Edge profile is `2068 B / four-code / 60 FPS` at a captured `2560x1600`. A completed 5.8 MiB transfer reached approximately `435 KB/s` near the tail and `425 KB/s` for the full session, with about 66 analyzed screen frames and 266 valid codes per second. These figures are a measured reference, not a guaranteed rate.
+
 ### Android
 
-The Android receiver analyzes the CameraX luminance plane directly and dispatches four-code crops to zxing-cpp decoders. The stable production profile remains four-code at 30 FPS. The 50/60 FPS full-refresh path is experimental: it confirms all four physical slots from real hits, retains calibrated geometry across camera rephasing, and uses wider calibrated crops. After the first systematic pass, it interleaves a second systematic pass with fresh repair symbols at a 1:7 ratio. This path does not alter four-code 30 FPS behavior.
+The Android receiver analyzes the CameraX luminance plane directly and dispatches four-code crops to zxing-cpp decoders. The stable production profile remains four-code at 30 FPS. The 50/60 FPS full-refresh path is experimental: it confirms all four physical slots from real hits, retains calibrated geometry across camera rephasing, and uses wider calibrated crops. After the first systematic pass, it sparsely interleaves a second systematic pass with fresh repair symbols at a 1:63 ratio. This path does not alter four-code 30 FPS behavior.
 
 Dual-code uses two QR codes in the same horizontal row and is supported only by the Android receiver. Its 50/60 FPS path keeps a stable two-slot geometry and can rephase the camera after sustained partial frames. Results vary substantially with rolling shutter, so dual-code is not the default or a stable throughput claim.
 
@@ -134,6 +143,7 @@ Local APK output is `android-receiver/app/build/outputs/apk/debug/app-debug.apk`
 ```text
 app.js, index.html, sw.js       GitHub Pages web receiver
 web-receiver/                   synchronized receiver mirror
+desktop-receiver/               isolated screen-capture desktop receiver
 sender/                         sender source and single-file build
 android-receiver/               native Android receiver
 shared/                         AFL2 protocol and fountain-code implementation

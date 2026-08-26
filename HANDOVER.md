@@ -8,16 +8,17 @@
 | --- | --- |
 | Android 接收端 | `0.8.135-quad-stall-classifier`，`versionCode 148` |
 | 网页接收端 | `v88` |
+| 电脑屏幕接收端 | `desktop-v1`，四码 60 FPS 高速路径 |
 | 稳定推荐 | 四码 `2068 B / 30 FPS` |
 | 实验配置 | 双码 `2068 B / 50 FPS`；四码 `50/60 FPS` |
 | 相机分析流 | `1920x1440`；不要恢复已移除的 1080p 选项 |
 | 网页接收端 | 仅接收单码和四码；明确拒绝双码 AFL2 |
 
-线上入口：
+由 `desktop-pages.yml` 发布的线上入口：
 
-- 接收端：https://shuipashui.github.io/beamferry/
+- 原网页摄像头接收端：https://shuipashui.github.io/beamferry/
 - 发送端：https://shuipashui.github.io/beamferry/sender/dist/beamferry-sender.html
-- Sitemap：https://shuipashui.github.io/beamferry/sitemap.xml
+- 电脑屏幕接收端：https://shuipashui.github.io/beamferry/desktop-receiver/
 
 ## 产品边界
 
@@ -31,7 +32,9 @@
 
 ## 架构摘要
 
-BeamFerry 使用 AFL2 二进制帧和系统 LT 喷泉码。发送端先发源符号，再发修复符号；四码 50/60 FPS 在首轮源符号结束后，以 `1:7` 比例均匀穿插第二遍源符号和新修复符号，重播以与 K 互质的步长覆盖全部源块。四码 30 FPS、双码和单码仍使用原调度。
+BeamFerry 使用 AFL2 二进制帧和系统 LT 喷泉码。发送端先发源符号，再发修复符号；四码 50/60 FPS 在首轮源符号结束后，以 `1:63` 比例稀疏穿插第二遍源符号和新修复符号，重播以与 K 互质的步长覆盖全部源块。四码 30 FPS、双码和单码仍使用原调度。
+
+电脑屏幕接收端使用独立的 4 Worker WASM 解码池、有界 3 帧抓取流水线和固定四格 ROI。高速四码发送端在首轮之后每 64 个尾段符号稀疏重播一个系统块，其余发送新 LT 修复方程；接收端剩余不超过 160 块且剥离停滞时，可对已收方程执行稀疏 GF(2) 消元。该消元不改变 AFL2 线格式，旧发送端仍兼容。
 
 发送端将连续序号轮转到四个物理格位，避免固定盲格永久吞掉同一 modulo-4 源符号通道。网页接收端使用受限并发的 Web Worker 和 ZXing WASM，只保留最新待分析帧。Android 使用 CameraX Y 平面和 zxing-cpp，四格裁剪通过 JNI 解码后以单批次提交协议层。
 
@@ -53,6 +56,10 @@ BeamFerry 使用 AFL2 二进制帧和系统 LT 喷泉码。发送端先发源符
 
 ## 当前性能结论
 
+- 电脑屏幕接收端最新实测：Windows 10、Edge 151、`2560x1600` 屏幕源、`2068 B / 四码 / 60 FPS`，采集/分析约 `66.6 FPS`、有效码约 `266.5 FPS`、尾段实时约 `435.2 KB/s`、滚动平均约 `430.3 KB/s`、完整会话约 `425.4 KB/s`。
+- 同一测试中识别 4862、唯一 3907、重复 955、无效 0；`K=2975` 正确完成。尾部消元为 `0/0`，表示本次普通 LT 剥离已直接完成。
+- 先前 1:1 系统重播实验会把重复数推高并将会话速度降至约 `336 KB/s`，已经撤销。1/64 稀疏重播在合成丢帧基准中比 1/8 少约 8%–9% 的尾段帧。
+
 - 健康会话中光学载荷应接近唯一载荷；差距明显增大通常表示重复采样或协议重复。
 - 主要瓶颈仍是有效 QR/frame、物理格位偏科和屏幕/相机滚动快门相位，不是协议队列。
 - 四码高速已有明显改善，但相同设备与参数仍可能出现启动等待或中途光学空窗，因此不能承诺理论吞吐。
@@ -70,7 +77,7 @@ npm run build
 git diff --check
 ```
 
-构建会更新根目录接收端、`web-receiver/` 镜像以及发送端单文件产物，提交前检查生成差异。GitHub Pages 从 `main` 部署；推送后应确认 Web CI 和 Pages 成功，并实际访问发送端、接收端、`robots.txt` 与 `sitemap.xml`。
+构建会更新根目录接收端、`web-receiver/` 镜像、电脑屏幕接收端协议以及发送端单文件产物，提交前检查生成差异。`desktop-pages.yml` 从 `main` 部署站点根原网页摄像头接收端、`/sender/dist/beamferry-sender.html` 发送端和 `/desktop-receiver/` 电脑屏幕接收端；推送后应确认 Web CI 与 Desktop receiver Pages 成功，并实际访问三个入口。
 
 Android APK 必须由 GitHub Actions 的 `Build Android receiver` workflow 构建，不把本地 APK 作为交付物。发布时提供 Actions 网页 artifact 链接：
 
@@ -104,6 +111,7 @@ git config --global --unset https.proxy
 | 路径 | 职责 |
 | --- | --- |
 | `sender/` | 发送端源码与单文件构建 |
+| `desktop-receiver/` | 独立电脑屏幕捕获接收端 |
 | `app.js`, `index.html`, `sw.js` | Pages 网页接收端 |
 | `web-receiver/` | 网页接收端同步镜像 |
 | `android-receiver/` | Android CameraX/zxing-cpp 接收端 |

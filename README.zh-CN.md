@@ -3,6 +3,7 @@
 [English](README.md) | 简体中文
 
 [![Web CI](https://github.com/shuipashui/beamferry/actions/workflows/web-ci.yml/badge.svg)](https://github.com/shuipashui/beamferry/actions/workflows/web-ci.yml)
+[![Desktop Pages](https://github.com/shuipashui/beamferry/actions/workflows/desktop-pages.yml/badge.svg)](https://github.com/shuipashui/beamferry/actions/workflows/desktop-pages.yml)
 [![Android build](https://github.com/shuipashui/beamferry/actions/workflows/android-apk.yml/badge.svg)](https://github.com/shuipashui/beamferry/actions/workflows/android-apk.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -12,8 +13,9 @@ BeamFerry 通过连续二维码流，将文件从电脑屏幕传输到手机摄�
 
 ## 在线使用
 
+- [打开原网页摄像头接收端](https://shuipashui.github.io/beamferry/)
 - [打开发送端](https://shuipashui.github.io/beamferry/sender/dist/beamferry-sender.html)
-- [打开网页接收端](https://shuipashui.github.io/beamferry/)
+- [打开电脑屏幕接收端](https://shuipashui.github.io/beamferry/desktop-receiver/)
 - Android 调试 APK 由 [Build Android receiver](https://github.com/shuipashui/beamferry/actions/workflows/android-apk.yml) 工作流生成，产物名称为 `beamferry-android-debug`。
 
 网页接收端需要通过 HTTPS 或 `localhost` 访问才能调用摄像头。原生接收端要求 Android 10 或更高版本。
@@ -29,6 +31,7 @@ BeamFerry 通过连续二维码流，将文件从电脑屏幕传输到手机摄�
 - gzip 确实能减小体积时自动压缩
 - 文件恢复完成后进行 SHA-256 完整性校验
 - 网页接收端使用 Web Worker 和 ZXing WASM 解码
+- 电脑浏览器接收端仅使用屏幕捕获，支持 AFL2 单码和四码
 - Android 接收端直接分析 CameraX Y 平面并使用 zxing-cpp
 - 兼容接收旧 AFL1 码流
 - 发送端可构建为独立的单文件 HTML
@@ -86,9 +89,15 @@ AFL2 使用 20 字节紧凑二进制帧头和一个喷泉码数据块。发送�
 
 当前浏览器版本的单文件上限为 64 MiB。刷新或关闭页面会丢失正在进行的 AFL2 重建状态。
 
+### 电脑屏幕接收端
+
+`desktop-receiver/` 只捕获用户共享的屏幕、窗口或浏览器标签页，不申请摄像头权限。四码高速路径使用 4 个并行 WASM Worker、有界位图流水线、固定格位 ROI 解码，并在 LT 尾部停滞时用稀疏 GF(2) 消元恢复已有方程。线上版本需要 HTTPS；本地可在仓库根目录运行 `node desktop-receiver/serve.mjs`。
+
+Windows/Edge 已验证参数为 `2068 B / 四码 / 60 FPS`，捕获分辨率 `2560x1600`。一次约 5.8 MiB 完整传输的尾段实时速度约 `435 KB/s`，全会话约 `425 KB/s`，分析约 66 屏/秒、有效码约 266 个/秒。该数据仅作为实测参考，不是保证速度。
+
 ### Android 接收端
 
-Android 接收端直接分析 CameraX 亮度平面，并将四码裁剪区域交给 zxing-cpp 解码。稳定生产配置仍为四码 30 FPS。50/60 FPS 全刷属于实验路径：四个物理格位必须分别由真实命中确认，相机重新定相时保留已校准几何，并使用更宽的校准裁剪框；首轮系统符号结束后，以 `1:7` 比例穿插第二遍系统符号与新修复符号。该路径不会改变原有四码 30 FPS 行为。
+Android 接收端直接分析 CameraX 亮度平面，并将四码裁剪区域交给 zxing-cpp 解码。稳定生产配置仍为四码 30 FPS。50/60 FPS 全刷属于实验路径：四个物理格位必须分别由真实命中确认，相机重新定相时保留已校准几何，并使用更宽的校准裁剪框；首轮系统符号结束后，以 `1:63` 比例稀疏穿插第二遍系统符号与新修复符号。该路径不会改变原有四码 30 FPS 行为。
 
 双码采用同一横排的两个二维码，仅 Android 接收端支持。双码 50/60 FPS 路径会保持稳定的双格几何，并在持续缺半帧时尝试重新调整相机相位。滚动快门会造成较大性能波动，因此双码不是默认布局，也不构成稳定速度承诺。
 
@@ -134,6 +143,7 @@ cd android-receiver
 ```text
 app.js, index.html, sw.js       GitHub Pages 网页接收端
 web-receiver/                   同步维护的接收端镜像
+desktop-receiver/               隔离的屏幕捕获电脑接收端
 sender/                         发送端源码和单文件构建产物
 android-receiver/               原生 Android 接收端
 shared/                         AFL2 协议和喷泉码实现

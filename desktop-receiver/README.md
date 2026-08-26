@@ -15,7 +15,8 @@
 
 仓库内的 `desktop-pages.yml` 会在 `main` 分支相关文件变化时自动构建并部署：
 
-- 站点根路径：BeamFerry 发送端。
+- 站点根路径：原网页摄像头接收端。
+- `/sender/dist/beamferry-sender.html`：BeamFerry 发送端。
 - `/desktop-receiver/`：电脑屏幕接收端。
 
 首次使用时，在 GitHub 仓库的 **Settings → Pages → Build and deployment** 中将 Source 设为 **GitHub Actions**，随后运行 **Desktop receiver Pages** workflow。
