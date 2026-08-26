@@ -68,7 +68,7 @@
   const HIGH_QUAD_FROZEN_MISS_LIMIT = 24;
   const HIGH_SINGLE_INFLIGHT = 4;
   const HIGH_QUAD_INFLIGHT = 2;
-  const HIGH_QUAD_GRAB_MS = 33;
+  const HIGH_QUAD_GRAB_MS = 12;
 
   let stream = null;
   let scanTimer = 0;
@@ -164,6 +164,7 @@
   let lastUsedLuma = false;
   let lumaUnavailable = false;
   let highGrabInFlight = false;
+  let highQuadJobsInFlight = 0;
   let lastQuadGrabAt = 0;
   let lastNativeLocate = 0;
   let highTileProven = [false, false, false, false];
@@ -461,6 +462,7 @@
     lastScanStartedAt = -Infinity;
     highBitmapLock = false;
     highGrabInFlight = false;
+    highQuadJobsInFlight = 0;
     highLocateLock = false;
     highLocateTick = 0;
     lastNativeLocate = 0;
@@ -662,6 +664,7 @@
     }
     highDecodeMeta.clear();
     highGrabInFlight = false;
+    highQuadJobsInFlight = 0;
   }
 
   function recoverStuckHighSpeedWorkers() {
@@ -1544,17 +1547,22 @@
   async function scanQuadCrops(crops, retryBinarizer) {
     const slots = idleHighWorkerSlots();
     if (!slots.length) return [];
+    const slot = slots[0];
+    highWorkerBusy[slot] = true;
+    highWorkerStartedAt[slot] = performance.now();
     const region = unionScanCrops(crops);
     try {
       const grabbed = await grabQuadPackedBitmap(region);
       if (!grabbed || !stream) {
         try { grabbed?.bitmap.close(); } catch (_) {}
+        highWorkerBusy[slot] = false;
+        highWorkerStartedAt[slot] = 0;
         return [];
       }
       const locked = (highTrackedTiles || []).filter(Boolean).length >= 2;
       const tiles = locked ? mapCropsToPacked(crops, grabbed) : [];
       const pending = postBitmapToWorker(
-        slots[0],
+        slot,
         grabbed.bitmap,
         grabbed.source,
         grabbed.width,
@@ -1563,31 +1571,29 @@
         tiles.length >= 2 ? 1 : 4,
         tiles
       );
-      highGrabInFlight = false;
       return pending;
     } catch (_) {
       lastQuadTiles = 0;
       const packed = await grabPackedRegion(region);
-      if (!packed || !stream) return [];
+      if (!packed || !stream) {
+        highWorkerBusy[slot] = false;
+        highWorkerStartedAt[slot] = 0;
+        return [];
+      }
       const sized = downscaleLuma(packed.lum, packed.width, packed.height, HIGH_QUAD_PACKED_SIZE);
       const pending = postLumaToWorker(
-        slots[0],
+        slot,
         sized,
         { x: packed.x, y: packed.y, width: packed.regionW, height: packed.regionH },
         4,
         retryBinarizer
       );
-      highGrabInFlight = false;
       return pending;
     }
   }
 
   function decodeQuadFrame() {
-    if (highGrabInFlight) {
-      workerBusyDrops += 1;
-      return;
-    }
-    if (highWorkerBusy.filter(Boolean).length >= HIGH_QUAD_INFLIGHT) {
+    if (highQuadJobsInFlight >= HIGH_QUAD_INFLIGHT) {
       workerBusyDrops += 1;
       return;
     }
@@ -1598,7 +1604,7 @@
       workerBusyDrops += 1;
       return;
     }
-    highGrabInFlight = true;
+    highQuadJobsInFlight += 1;
     lastQuadGrabAt = now;
     void (async () => {
       try {
@@ -1607,7 +1613,7 @@
         const hits = await scanQuadCrops(crops, false);
         rememberQuadHits(hits);
       } finally {
-        highGrabInFlight = false;
+        highQuadJobsInFlight = Math.max(0, highQuadJobsInFlight - 1);
       }
     })();
   }
@@ -2065,6 +2071,7 @@
     lastPostedScanSize = 0;
     highBitmapLock = false;
     highGrabInFlight = false;
+    highQuadJobsInFlight = 0;
     blindScreenScan = false;
     highLocateLock = false;
     highLocateTick = 0;
@@ -2627,6 +2634,7 @@
         (highMultiLayout ? " · 校准 " + highTileProven.filter(Boolean).length + "/4" : "") +
         (highMultiLayout && lastQuadTiles >= 2 ? " · 切格" : "") + perFrameLabel(),
       "调度：Worker 就绪 " + highWorkerReady.filter(Boolean).length + "/" + workerCount +
+        " · 帧任务 " + highQuadJobsInFlight + "/" + HIGH_QUAD_INFLIGHT +
         " · 忙时丢弃 " + workerBusyDrops + " · 重启 " + workerRestarts + " · 错误 " + workerErrors +
         " · 连续未识别 " + highScanMisses,
       "协议：识别 " + highFramesSeen + " · 唯一 " + highUniqueFrames + " · 重复 " + highDuplicateFrames +

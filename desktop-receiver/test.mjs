@@ -19,6 +19,12 @@ assert.match(app, /highScanMisses\s*>=\s*12[\s\S]*decodeBlindScreenQuadrants\(\)
 assert.match(app, /function desktopAcquisitionCrops\(\)/, "fallback scan must define overlapping desktop capture windows");
 assert.match(app, /frame\.width \* 0\.52/, "desktop capture windows must preserve dense QR module resolution");
 assert.match(app, /blindScreenScan\s*\?\s*" · 四区盲扫"/, "diagnostics must expose the high-resolution fallback");
+assert.match(app, /const HIGH_QUAD_INFLIGHT = 2;/, "quad decoding must use a bounded two-frame pipeline");
+assert.match(app, /const HIGH_QUAD_GRAB_MS = 12;/, "quad capture must not retain the old 30 FPS throttle");
+assert.match(app, /highQuadJobsInFlight\s*>=\s*HIGH_QUAD_INFLIGHT/, "quad backpressure must use concurrent frame jobs");
+assert.match(app, /highQuadJobsInFlight \+= 1;[\s\S]*highQuadJobsInFlight = Math\.max\(0, highQuadJobsInFlight - 1\)/, "quad frame jobs must release their pipeline slot");
+assert.match(app, /const slot = slots\[0\];\s*highWorkerBusy\[slot\] = true;/, "quad frame capture must reserve a worker before awaiting a bitmap");
+assert.match(app, /" · 帧任务 " \+ highQuadJobsInFlight/, "diagnostics must expose quad pipeline occupancy");
 assert.match(html, /选择屏幕源/, "screen-source action must be visible");
 assert.ok(html.indexOf('class="actions"') < html.indexOf('class="camera-card"'), "narrow layouts must show screen-source actions before the preview");
 assert.match(html, /\.\.\/sender\/dist\/beamferry-sender\.html/, "sender link must resolve from the isolated directory");
