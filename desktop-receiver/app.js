@@ -313,8 +313,8 @@
       startBtn.disabled = false;
       stopBtn.disabled = false;
       status.textContent = "正在打开屏幕捕获";
-      scheduleScan();
       startHighSpeedWorkers();
+      scheduleScan();
       if (highWorkers.length) {
         lastDecodeBackend = "AFL2 WASM Worker";
         lastWorkerCount = highWorkers.length;
@@ -436,6 +436,7 @@
     scanFrameCallback = 0;
     freezeCameraPreview();
     pauseHighSpeedJobs();
+    stopHighSpeedWorkers();
     if (stream) stream.getTracks().forEach((track) => track.stop());
     stream = null;
     video.srcObject = null;
@@ -620,6 +621,12 @@
         if (origin) updateHighScanRoiFromHits(codes, origin);
       } else {
         highScanMisses += 1;
+        if (highScanMisses === 180 && !highFramesSeen) {
+          const surface = stream?.getVideoTracks?.()[0]?.getSettings?.().displaySurface;
+          status.textContent = surface === "browser"
+            ? "未识别到二维码，请停止后改选发送端窗口或整个屏幕"
+            : "未识别到二维码，请确认捕获画面中二维码完整且正在播放";
+        }
         if (!highMultiLayout && highScanMisses >= HIGH_ROI_MISS_LIMIT) {
           highScanRoi = null;
           highTrackedTiles = null;

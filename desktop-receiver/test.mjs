@@ -11,6 +11,9 @@ const [app, html, serviceWorker, storage, desktopStyles] = await Promise.all([
 
 assert.match(app, /getDisplayMedia\s*\(/, "receiver must capture a screen source");
 assert.doesNotMatch(app, /getUserMedia\s*\(/, "receiver must not request a camera source");
+assert.match(app, /pauseHighSpeedJobs\(\);\s*stopHighSpeedWorkers\(\);/, "a closed screen stream must discard old decoder workers");
+assert.ok(app.indexOf("startHighSpeedWorkers();") < app.indexOf("scheduleScan();", app.indexOf("async function start()")), "decoder workers must restart before the new capture loop");
+assert.match(app, /改选发送端窗口或整个屏幕/, "tab-capture stalls need actionable guidance");
 assert.match(html, /选择屏幕源/, "screen-source action must be visible");
 assert.ok(html.indexOf('class="actions"') < html.indexOf('class="camera-card"'), "narrow layouts must show screen-source actions before the preview");
 assert.match(html, /\.\.\/sender\/dist\/beamferry-sender\.html/, "sender link must resolve from the isolated directory");
