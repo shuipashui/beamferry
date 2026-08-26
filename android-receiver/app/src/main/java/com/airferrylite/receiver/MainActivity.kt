@@ -848,7 +848,7 @@ class MainActivity : AppCompatActivity() {
             missingText.text = if (file != null) {
                 "SHA-256 校验通过"
             } else {
-                "唯一帧：${update.receivedFrames}/约$expectedFrames · 已恢复块：${update.solvedBlocks}/${update.totalBlocks}"
+                "唯一包：${update.receivedFrames}/约$expectedFrames（$framePercent%）· 解块：${update.solvedBlocks}/${update.totalBlocks}（$solvePercent%）"
             }
             statusText.text = when {
                 update.error != null -> update.error

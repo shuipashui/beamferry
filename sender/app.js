@@ -107,6 +107,7 @@
   let encodeInflight = 0;
   let highNextSeq = 0;
   let highNextPair = 0;
+  let highNextQuadRotation = 0;
   let codesPerScreen = 1;
   let lastPatterns = null;
   let livePatterns = [null, null, null, null];
@@ -335,6 +336,7 @@
       resetEncodePipeline();
       highNextSeq = 0;
       highNextPair = 0;
+      highNextQuadRotation = 0;
       livePatterns = [null, null, null, null];
       liveSeqs = [0, 0, 0, 0];
       emitted = 0;
@@ -425,6 +427,7 @@
     livePatterns = [null, null, null, null];
     liveSeqs = [0, 0, 0, 0];
     highNextPair = 0;
+    highNextQuadRotation = 0;
     document.documentElement.classList.remove("quad-send");
     document.body.classList.remove("quad-send");
     const viewer = canvas.closest(".viewer");
@@ -608,7 +611,11 @@
   function nextScreenJob() {
     if (codesPerScreen === 4) {
       if (quadRefreshesAll()) {
-        const indices = [0, 1, 2, 3];
+        // Rotate sequence-to-tile assignment every screen. A camera-blind
+        // physical tile then loses a spread of source indexes instead of one
+        // permanent seq modulo-4 lane, which avoids LT tail stalls.
+        const rotation = highNextQuadRotation++ & 3;
+        const indices = [0, 1, 2, 3].map(index => (index + rotation) & 3);
         const packed = indices.map(() => takePackedCode());
         return { indices, seqs: packed.map((item) => item.seq), packed };
       }
