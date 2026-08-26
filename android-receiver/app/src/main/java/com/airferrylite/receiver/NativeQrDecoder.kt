@@ -48,12 +48,10 @@ internal class NativeQrDecoder {
         if (results.isEmpty() && retryBinarizer) {
             reader.options.binarizer = BarcodeReader.Binarizer.GLOBAL_HISTOGRAM
             reader.options.tryHarder = true
-            reader.options.tryInvert = true
             try {
                 results = readOnce(luma, source, region)
             } finally {
                 reader.options.tryHarder = false
-                reader.options.tryInvert = false
             }
         }
         return results.mapNotNull { toHit(it, region.left, region.top) }

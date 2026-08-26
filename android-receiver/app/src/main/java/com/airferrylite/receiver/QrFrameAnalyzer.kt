@@ -670,8 +670,12 @@ class QrFrameAnalyzer(
             quadStream.get() -> {
                 tileUndercount.set(0)
                 val grid = quadTileGrid(imageWidth, imageHeight)
+                val stable = stableQuadTiles.get()?.takeIf { it.size >= 4 }
                 val base = previous?.takeIf { it.size >= 4 } ?: grid
-                val next = ScanLayout.followContainedHits(base, perCode, imageWidth, imageHeight)
+                // A rolling-shutter fragment has distorted bounds. Once the
+                // high-FPS four-cell grid is fixed, partial hits must not drag it.
+                val next = if (quadFullRefresh60.get()) stable ?: grid
+                else ScanLayout.followContainedHits(base, perCode, imageWidth, imageHeight)
                 trackedTiles.set(next)
                 if (quadFullRefresh60.get() && next.size >= 4) stableQuadTiles.set(next)
             }
@@ -812,7 +816,7 @@ class QrFrameAnalyzer(
         private const val TILE_UNDERCOUNT_LIMIT = 3
         private const val DUAL_RECOVERY_INTERVAL = 8
         private const val QUAD_RECOVERY_INTERVAL = 12
-        private const val QUAD_SLOT_RECOVERY_MISSES = 4
+        private const val QUAD_SLOT_RECOVERY_MISSES = 12
         private const val BOOTSTRAP_RETRY_INTERVAL = 8
         private const val STABLE_CACHE_MISS_LIMIT = 3
     }

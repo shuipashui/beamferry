@@ -73,7 +73,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var resetButton: Button
     private lateinit var startReceiveButton: Button
     private lateinit var fpsGroup: MaterialButtonToggleGroup
-    private lateinit var resolutionGroup: MaterialButtonToggleGroup
     private lateinit var frameAnalyzer: QrFrameAnalyzer
     private lateinit var cameraExecutor: ExecutorService
     private lateinit var protocolExecutor: ExecutorService
@@ -114,7 +113,6 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var latestSpeedLabel = "实时 — · 平均 —"
     @Volatile private var highSpeedSessionActive = false
     private var requestedFps = 60
-    private var requestedAnalysisHeight = 1440
     private var fullDiagnostics = ""
     private var pendingSave: PendingSave? = null
     private var pendingSession: String? = null
@@ -206,14 +204,6 @@ class MainActivity : AppCompatActivity() {
         resetButton = findViewById(R.id.resetButton)
         startReceiveButton = findViewById(R.id.startReceiveButton)
         fpsGroup = findViewById(R.id.fpsGroup)
-        resolutionGroup = findViewById(R.id.resolutionGroup)
-        requestedAnalysisHeight = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getInt(PREF_ANALYSIS_HEIGHT, 1440).let { if (it == 1080) 1080 else 1440 }
-        resolutionGroup.check(if (requestedAnalysisHeight == 1080) R.id.resolution1080 else R.id.resolution1440)
-        resolutionGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (!isChecked) return@addOnButtonCheckedListener
-            val height = if (checkedId == R.id.resolution1080) 1080 else 1440
-            if (height != requestedAnalysisHeight) setRequestedAnalysisHeight(height)
-        }
         requestedFps = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).getInt(PREF_FPS, 60).let {
             if (it == 30 || it == 120) it else 60
         }
@@ -506,7 +496,7 @@ class MainActivity : AppCompatActivity() {
                 lastHighTotal,
                 speedBytesPerSecond
             )) return
-        statusText.text = "四码 60 FPS 早期命中率偏低，正在重新定相（${quadPhaseRecovery.attempts}/1）"
+        statusText.text = "四码高帧率早期命中率偏低，正在重新定相（${quadPhaseRecovery.attempts}/1）"
         quadPhaseRecovery.rebase(frames, hits)
         restartScanner(countRecovery = false, forceRebind = true)
     }
@@ -765,7 +755,7 @@ class MainActivity : AppCompatActivity() {
             .setResolutionSelector(
                 ResolutionSelector.Builder().setResolutionStrategy(
                     ResolutionStrategy(
-                        Size(1920, requestedAnalysisHeight),
+                        Size(1920, 1440),
                         ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
                     )
                 ).build()
@@ -1009,7 +999,7 @@ class MainActivity : AppCompatActivity() {
         }
         val lines = mutableListOf(
             "设备：${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE} · App ${BuildConfig.VERSION_NAME}",
-            "相机：实际 ${stats?.width ?: "?"}×${stats?.height ?: "?"} · 请求 1920×$requestedAnalysisHeight · 采集 ${stats?.captureFps?.let { "%.1f".format(it) } ?: "?"} FPS · 选择 $requestedFps · 目标 ${preferredFpsLabel()}",
+            "相机：${stats?.width ?: "?"}×${stats?.height ?: "?"} · 采集 ${stats?.captureFps?.let { "%.1f".format(it) } ?: "?"} FPS · 选择 $requestedFps · 目标 ${preferredFpsLabel()}",
             "分析流 FPS：$availableCameraFpsLabel",
             "分析：提交 ${stats?.submittedFrames ?: 0} · 完成 ${stats?.analysisFps?.let { "%.1f".format(it) } ?: "0"} FPS · 丢帧 ${stats?.droppedFrames ?: 0}",
             "解码：zxing-cpp · 平均 ${stats?.averageDecodeMs?.let { "%.1f ms".format(it) } ?: "—"} · 单码命中 ${stats?.singleHits ?: 0} · 多码扫描 ${stats?.multiScans ?: 0}（命中 ${stats?.multiHits ?: 0}${perFrameLabel(stats)}）",
@@ -1030,7 +1020,7 @@ class MainActivity : AppCompatActivity() {
             val slotHits = stats.quadSlotHits.joinToString("/")
             val phaseBefore = quadPhaseRecovery.beforeQrPerFrame?.let { String.format("%.2f", it) } ?: "—"
             val phaseAfter = quadPhaseRecovery.afterQrPerFrame?.let { String.format("%.2f", it) } ?: "—"
-            lines.add(5, "四码 60：帧 0/1/2/3/4=$frameCounts · 补扫 ${stats.quadRecoveryScans} · 单格加强 ${stats.quadSlotRecoveryScans} · 重新定相 ${quadPhaseRecovery.attempts}/1 · 前/后 $phaseBefore/$phaseAfter QR/帧")
+            lines.add(5, "四码高速：帧 0/1/2/3/4=$frameCounts · 补扫 ${stats.quadRecoveryScans} · 单格加强 ${stats.quadSlotRecoveryScans} · 重新定相 ${quadPhaseRecovery.attempts}/1 · 前/后 $phaseBefore/$phaseAfter QR/帧")
             lines.add(6, "四码格位：左上/右上/左下/右下=$slotHits · 稳定缓存 ${if (stats.quadStableCacheAvailable) "有" else "无"}")
         }
         if (invalidFrameCount.get() > 0) lines.add("无效样本：$invalidFrameSample")
@@ -1088,13 +1078,6 @@ class MainActivity : AppCompatActivity() {
         val hits = stats?.multiHits ?: 0
         if (scans <= 0 || hits <= 0) return ""
         return " · 每帧 %.2f".format(hits.toDouble() / scans)
-    }
-
-    private fun setRequestedAnalysisHeight(height: Int) {
-        requestedAnalysisHeight = if (height == 1080) 1080 else 1440
-        getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().putInt(PREF_ANALYSIS_HEIGHT, requestedAnalysisHeight).apply()
-        if (cameraStarted && cameraProvider != null) bindCamera()
-        else statusText.text = "已选分析流 1920×${requestedAnalysisHeight}"
     }
 
     private fun qrDensityLabel(frameBytes: Int): String {
@@ -1251,7 +1234,6 @@ class MainActivity : AppCompatActivity() {
         private const val SPEED_REFRESH_INTERVAL_MS = 1000L
         private const val PREFS_NAME = "airferry-lite"
         private const val PREF_FPS = "preview_fps"
-        private const val PREF_ANALYSIS_HEIGHT = "analysis_height"
         private const val PREF_AUTOSTART_SCAN = "autostart_scan"
         private const val PREF_AUTOSTART_FROM_CONTINUE = "autostart_from_continue"
         private const val PREF_AUTOSTART_BIND_DELAY_OVERRIDE_MS = "autostart_bind_delay_ms"

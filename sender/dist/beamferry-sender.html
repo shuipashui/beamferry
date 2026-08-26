@@ -2707,7 +2707,8 @@ var qrcode = function() {
           payloadFnv: H.fnv1a(packed.container),
           layoutCodes: codesPerScreen === 1 ? 1 : codesPerScreen === 2 ? 2 : 4,
           systematic: true,
-          quadFullRefresh60: codesPerScreen === 4 && Number(fps.value) === 60
+          // The dedicated marker selects the high-FPS fixed-quad receiver path.
+          quadFullRefresh60: codesPerScreen === 4 && Number(fps.value) >= 50
         },
         session: sessionId.toString(16).padStart(4, "0"),
         total: encoder.k,

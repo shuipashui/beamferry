@@ -231,7 +231,7 @@ assert.ok(sender.includes("四码整屏同换"));
 assert.ok(sender.includes("codesPerScreen === 4 && Number(fps.value) <= 60"), "quad 60 FPS must refresh all four codes on every update");
 assert.ok(sender.includes("30 FPS 原稳定路径保持不变"), "sender must explain that quad 30 FPS remains the stable path");
 assert.ok(sender.includes("layoutCodes: codesPerScreen === 1 ? 1 : codesPerScreen === 2 ? 2 : 4"));
-assert.ok(sender.includes("quadFullRefresh60: codesPerScreen === 4 && Number(fps.value) === 60"));
+assert.ok(sender.includes("quadFullRefresh60: codesPerScreen === 4 && Number(fps.value) >= 50"));
 assert.ok(!sender.includes("function drawDualBallast"));
 assert.ok(template.includes('id="hudPlayBtn"') && template.includes('id="hudFsBtn"'));
 assert.ok(sender.includes('layout === "dual"'));
