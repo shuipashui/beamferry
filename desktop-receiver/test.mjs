@@ -11,6 +11,7 @@ const [app, html, serviceWorker, storage, desktopStyles] = await Promise.all([
 
 assert.match(app, /getDisplayMedia\s*\(/, "receiver must capture a screen source");
 assert.doesNotMatch(app, /getUserMedia\s*\(/, "receiver must not request a camera source");
+assert.match(app, /stopBtn\.onclick\s*=\s*\(\)\s*=>\s*stop\(\)/, "stop clicks must not render the PointerEvent as status text");
 assert.match(app, /pauseHighSpeedJobs\(\);\s*stopHighSpeedWorkers\(\);/, "a closed screen stream must discard old decoder workers");
 assert.ok(app.indexOf("startHighSpeedWorkers();") < app.indexOf("scheduleScan();", app.indexOf("async function start()")), "decoder workers must restart before the new capture loop");
 assert.match(app, /改选发送端窗口或整个屏幕/, "tab-capture stalls need actionable guidance");
@@ -23,5 +24,9 @@ assert.match(storage, /beamferry-desktop-receiver/, "IndexedDB namespace must be
 assert.match(html, /class="card missing-card"/, "desktop layout needs an explicit missing-data region");
 assert.match(desktopStyles, /grid-template-areas:/, "wide screens must use the desktop grid");
 assert.match(desktopStyles, /body\s*\{[^}]*overflow:\s*hidden/s, "desktop view should fit without page scrolling");
+assert.match(desktopStyles, /\.stats strong\s*\{[^}]*white-space:\s*normal/s, "long status values must wrap inside the sidebar");
+
+const server = await readFile(new URL("./serve.mjs", import.meta.url), "utf8");
+assert.match(server, /relative\.startsWith\("sender\/"\)/, "local server must expose the sibling sender build");
 
 console.log("desktop screen receiver isolation checks ok");

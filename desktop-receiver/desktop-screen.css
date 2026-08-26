@@ -11,7 +11,7 @@
 
   .app {
     display: grid;
-    grid-template-columns: minmax(0, 1.65fr) minmax(390px, 0.75fr);
+    grid-template-columns: minmax(0, 1.82fr) minmax(360px, 0.68fr);
     grid-template-rows: auto auto auto 9px auto minmax(100px, 1fr) auto auto;
     grid-template-areas:
       "header header"
@@ -51,6 +51,7 @@
 
   .actions > button {
     padding-inline: 12px;
+    font-size: 13px;
     white-space: nowrap;
   }
 
@@ -66,6 +67,23 @@
     padding: 11px 13px;
   }
 
+  .stats > div {
+    min-width: 0;
+  }
+
+  .stats strong {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: clamp(13px, 0.76vw, 16px);
+    line-height: 1.35;
+  }
+
+  .stats span {
+    font-size: 11px;
+  }
+
   .progress {
     grid-area: progress;
     margin: 0;
@@ -77,6 +95,17 @@
     grid-area: missing;
     margin: 0;
     padding: 11px 13px;
+  }
+
+  .missing-card .row > strong,
+  .diagnostics .row > strong,
+  .result > strong {
+    font-size: 16px;
+  }
+
+  .missing-card button,
+  .diagnostics button {
+    font-size: 11px;
   }
 
   .missing-card code {

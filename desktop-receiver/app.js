@@ -186,7 +186,7 @@
   const highJobWaiters = new Map();
 
   startBtn.onclick = start;
-  stopBtn.onclick = stop;
+  stopBtn.onclick = () => stop();
   resetBtn.onclick = reset;
   fps30Btn?.addEventListener("click", () => { void setPreviewFps(30); });
   fps60Btn?.addEventListener("click", () => { void setPreviewFps(60); });
