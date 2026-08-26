@@ -18,6 +18,8 @@ BeamFerry transfers a file from a computer screen to a phone camera as a live QR
 
 The web receiver requires HTTPS or `localhost` for camera access. Android 10 or later is required for the native receiver.
 
+Current release baseline: Android `0.8.134-quad-wide-slots` (`versionCode 147`) and web receiver `v88`.
+
 ## Features
 
 - Fully local file encoding and reconstruction
@@ -86,7 +88,7 @@ The browser build limits a transfer to 64 MiB. Refreshing or closing the page di
 
 ### Android
 
-The Android receiver analyzes the CameraX luminance plane directly and dispatches four-code crops to zxing-cpp decoders. The stable production profile remains four-code at 30 FPS. The 50/60 FPS full-refresh path is experimental and includes separate slot calibration and optical phase recovery; it does not alter the 30 FPS path.
+The Android receiver analyzes the CameraX luminance plane directly and dispatches four-code crops to zxing-cpp decoders. The stable production profile remains four-code at 30 FPS. The 50/60 FPS full-refresh path is experimental: it confirms all four physical slots from real hits, retains calibrated geometry across camera rephasing, and uses wider calibrated crops. After the first systematic pass, it interleaves a second systematic pass with fresh repair symbols at a 1:7 ratio. This path does not alter four-code 30 FPS behavior.
 
 Dual-code uses two QR codes in the same horizontal row and is supported only by the Android receiver. Its 50/60 FPS path keeps a stable two-slot geometry and can rephase the camera after sustained partial frames. Results vary substantially with rolling shutter, so dual-code is not the default or a stable throughput claim.
 
