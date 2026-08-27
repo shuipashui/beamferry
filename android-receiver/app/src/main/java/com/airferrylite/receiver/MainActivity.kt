@@ -1039,12 +1039,12 @@ class MainActivity : AppCompatActivity() {
             lines.add(5, "双码：本帧 ${stats.decodedThisFrame} · 完整帧 ${stats.dualCompleteFrames} · 缺半帧 ${stats.dualPartialFrames} · 低频补扫 ${stats.dualRecoveryScans} · 重新定相 ${dualPhaseRecovery.attempts}/3")
             lines.add(6, "双码格位：A ${stats.dualLeftCropHits} · B ${stats.dualRightCropHits} · 轴向 ${stats.dualAxis} · 几何 ${stats.dualGeometry} · 缓存 ${if (stats.dualCacheAvailable) "有" else "无"}")
         }
-        if (stats?.quadFullRefresh60 == true) {
+        if (stats?.quadLayout == true) {
             val frameCounts = stats.quadFrameCounts.joinToString("/")
             val slotHits = stats.quadSlotHits.joinToString("/")
             val phaseBefore = quadPhaseRecovery.beforeQrPerFrame?.let { String.format("%.2f", it) } ?: "—"
             val phaseAfter = quadPhaseRecovery.afterQrPerFrame?.let { String.format("%.2f", it) } ?: "—"
-            lines.add(5, "四码高速：帧 0/1/2/3/4=$frameCounts · 补扫 ${stats.quadRecoveryScans} · 单格加强 ${stats.quadSlotRecoveryScans} · 重新定相 ${quadPhaseRecovery.attempts}/3 · 前/后 $phaseBefore/$phaseAfter QR/帧")
+            lines.add(5, "四码：帧 0/1/2/3/4=$frameCounts · 补扫 ${stats.quadRecoveryScans} · 单格加强 ${stats.quadSlotRecoveryScans} · 重新定相 ${quadPhaseRecovery.attempts}/3 · 前/后 $phaseBefore/$phaseAfter QR/帧")
             val calibrationCost = if (stats.quadCalibratedSlots >= 4) {
                 " · 完成于 ${stats.quadCalibrationFrames} 帧/${stats.quadCalibrationScans} 补扫"
             } else ""

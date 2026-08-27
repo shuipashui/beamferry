@@ -348,7 +348,7 @@ class QrFrameAnalyzer(
             }
         }
         val activeTiles = trackedTiles.get().orEmpty().ifEmpty {
-            if (quadFullRefresh60.get()) stableQuadTiles.get().orEmpty() else emptyList()
+            if (quadStream.get()) stableQuadTiles.get().orEmpty() else emptyList()
         }
         val previousTiles = activeTiles.map {
             ScanLayout.clampRect(it, luma.width, luma.height)
@@ -373,7 +373,7 @@ class QrFrameAnalyzer(
                     retryBinarizer = false,
                     maxSymbols = if (lockedDual) 2 else 1,
                     trackDualSlots = lockedDual,
-                    recoverQuadSlots = lockedQuad && quadFullRefresh60.get() &&
+                    recoverQuadSlots = lockedQuad &&
                         (quadCalibratedMask.get() and 0x0f) == 0x0f
                 )
             )
@@ -388,16 +388,15 @@ class QrFrameAnalyzer(
             val count = transferCount(merged)
             if (count > 0) quadRecoveryTick.set(0)
             val calibrationMask = quadCalibratedMask.get() and 0x0f
-            val calibrateNow = quadFullRefresh60.get() && calibrationMask != 0x0f &&
+            val calibrateNow = calibrationMask != 0x0f &&
                 quadCalibrationTick.incrementAndGet() >= QUAD_CALIBRATION_INTERVAL
             val recoverNow = calibrateNow || count == 0 && (
-                !quadFullRefresh60.get() ||
-                    quadRecoveryTick.incrementAndGet() >= QUAD_RECOVERY_INTERVAL
+                quadRecoveryTick.incrementAndGet() >= QUAD_RECOVERY_INTERVAL
                 )
             if (recoverNow) {
                 if (calibrateNow) quadCalibrationTick.set(0)
                 quadRecoveryTick.set(0)
-                if (quadFullRefresh60.get()) quadRecoveryScans.incrementAndGet()
+                quadRecoveryScans.incrementAndGet()
                 val recoveryRegion = if (calibrateNow) {
                     ScanLayout.centerSquare(luma.width, luma.height)
                 } else region
@@ -609,10 +608,13 @@ class QrFrameAnalyzer(
     private fun publish(imageWidth: Int, imageHeight: Int, region: ScanRegion, hits: List<NativeHit>) {
         val transferHits = hits.filter { QrPayload.isTransfer(QrPayload.bytesFrom(it.bytes, it.text)) }
         decodedThisFrame.set(transferHits.size)
+        val hasQuadLayout = transferHits.any {
+            QrPayload.isQuadLayout(QrPayload.bytesFrom(it.bytes, it.text))
+        }
         if (transferHits.any { QrPayload.isQuadFullRefresh60(QrPayload.bytesFrom(it.bytes, it.text)) }) {
             quadFullRefresh60.set(true)
         }
-        if (quadFullRefresh60.get()) {
+        if (quadStream.get() || hasQuadLayout) {
             quadFrameCounts.incrementAndGet(transferHits.size.coerceIn(0, 4))
             recordQuadSlotHits(transferHits)
         }
@@ -638,7 +640,7 @@ class QrFrameAnalyzer(
         }
         roiMisses.set(0)
         validQrInWindow.addAndGet(transferHits.size.toLong())
-        if (transferHits.any { QrPayload.isQuadLayout(QrPayload.bytesFrom(it.bytes, it.text)) }) {
+        if (hasQuadLayout) {
             quadStream.set(true)
             dualStream.set(false)
         } else if (transferHits.any { QrPayload.isDualLayout(QrPayload.bytesFrom(it.bytes, it.text)) }) {
@@ -715,7 +717,7 @@ class QrFrameAnalyzer(
                 // High-FPS rolling-shutter frames often expose only one or two tiles.
                 // Once all four slots are established, sparse hits must not drag the
                 // crop grid toward the currently visible side and starve other slots.
-                val next = if (quadFullRefresh60.get() && stable != null) {
+                val next = if (stable != null) {
                     val calibrated = quadCalibratedMask.get()
                     if (calibrated == 0x0f) {
                         stable
@@ -747,7 +749,7 @@ class QrFrameAnalyzer(
                     ScanLayout.followContainedHits(base, perCode, imageWidth, imageHeight)
                 }
                 trackedTiles.set(next)
-                if (quadFullRefresh60.get() && next.size >= 4) {
+                if (next.size >= 4) {
                     var calibratedTiles = next
                     if (stable == null) {
                         val updated = next.toMutableList()
@@ -934,7 +936,10 @@ class QrFrameAnalyzer(
         private const val QUAD_RECOVERY_INTERVAL = 12
         private const val QUAD_SLOT_RECOVERY_MISSES = 12
         private const val QUAD_CALIBRATION_INTERVAL = 4
-        private const val QUAD_CALIBRATED_TILE_PAD = 1.35f
+        // V33 symbols leave little tolerance for rolling-shutter corner skew. Keep
+        // enough quiet-zone context around a calibrated slot without widening the
+        // full-frame bootstrap path used by other layouts.
+        private const val QUAD_CALIBRATED_TILE_PAD = 1.55f
         private const val BOOTSTRAP_RETRY_INTERVAL = 8
         private const val STABLE_CACHE_MISS_LIMIT = 3
     }
