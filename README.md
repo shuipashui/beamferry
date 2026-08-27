@@ -18,7 +18,7 @@ BeamFerry transfers a file from a computer screen to a phone camera as a live QR
 
 The web receiver requires HTTPS or `localhost` for camera access. Android 10 or later is required for the native receiver.
 
-Current release baseline: Android `0.8.135-quad-stall-classifier` (`versionCode 148`) and web receiver `v88`.
+Current release baseline: Android `0.8.134-quad-wide-slots` (`versionCode 147`) and web receiver `v88`.
 
 ## Features
 

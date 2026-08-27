@@ -508,13 +508,7 @@ class QrFrameAnalyzer(
                         else if (quadSlotMissStreak.incrementAndGet(index) >= QUAD_SLOT_RECOVERY_MISSES) {
                             quadSlotMissStreak.set(index, 0)
                             quadSlotRecoveryScans.incrementAndGet()
-                            val weakCrop = ScanLayout.inflate(
-                                crop,
-                                QUAD_WEAK_TILE_RECOVERY_PAD,
-                                luma.width,
-                                luma.height
-                            )
-                            hits = tileDecoders[index].read(luma, weakCrop, 1, retryBinarizer = true)
+                            hits = tileDecoders[index].read(luma, crop, 1, retryBinarizer = true)
                             if (hits.isNotEmpty()) quadSlotMissStreak.set(index, 0)
                         }
                     }
@@ -941,9 +935,6 @@ class QrFrameAnalyzer(
         private const val QUAD_SLOT_RECOVERY_MISSES = 12
         private const val QUAD_CALIBRATION_INTERVAL = 4
         private const val QUAD_CALIBRATED_TILE_PAD = 1.35f
-        // Applied only to a calibrated slot after a sustained miss streak. The
-        // resulting total margin is about 51%, while healthy slots stay at 35%.
-        private const val QUAD_WEAK_TILE_RECOVERY_PAD = 1.12f
         private const val BOOTSTRAP_RETRY_INTERVAL = 8
         private const val STABLE_CACHE_MISS_LIMIT = 3
     }

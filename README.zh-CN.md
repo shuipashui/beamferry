@@ -18,7 +18,7 @@ BeamFerry 通过连续二维码流，将文件从电脑屏幕传输到手机摄�
 
 网页接收端需要通过 HTTPS 或 `localhost` 访问才能调用摄像头。原生接收端要求 Android 10 或更高版本。
 
-当前发布基线：Android `0.8.135-quad-stall-classifier`（`versionCode 148`），网页接收端 `v88`。
+当前发布基线：Android `0.8.134-quad-wide-slots`（`versionCode 147`），网页接收端 `v88`。
 
 ## 主要特性
 
