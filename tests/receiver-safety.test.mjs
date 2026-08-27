@@ -83,10 +83,10 @@ for (const needle of [
   ,"const HIGH_TRACK_SIZE = 960;"
   ,"const HIGH_TILE_SIZE = 720;"
   ,"const HIGH_QUAD_TILE_SIZE = 720;"
-  ,"const HIGH_QUAD_PACKED_SIZE = 720;"
-  ,">= 4 ? 4 : 2"
+  ,"const HIGH_QUAD_PACKED_SIZE = HIGH_SPEED_WORKERS >= 3 ? 720 : (IS_ANDROID ? 680 : 720);"
+  ,"HARDWARE_THREADS >= 6 && DEVICE_MEMORY_GB >= 4 ? 3 : 2"
   ,"!/Android/i.test(navigator.userAgent || \"\")"
-  ,"const RECEIVER_BUILD = \"v88\";"
+  ,"const RECEIVER_BUILD = \"v91\";"
   ,"function grabLumaRegion"
   ,"function cropLuma"
   ,"function downscaleLuma"
@@ -116,8 +116,8 @@ for (const needle of [
   ,"function syncPreviewFpsButtons"
   ,"frameRate: { ideal: previewFpsCap, max: previewFpsCap }"
   ,"cameraRequestedFps = previewFpsCap;"
-  ,"const HIGH_QUAD_INFLIGHT = 2;"
-  ,"const HIGH_QUAD_GRAB_MS = 33;"
+  ,"const HIGH_QUAD_INFLIGHT = 3;"
+  ,"const HIGH_QUAD_GRAB_MS = 12;"
   ,"function chooseQuadRegion"
   ,"function readCropsFromPacked"
   ,"function tileCovered"
@@ -181,10 +181,10 @@ for (const needle of [
   ,"function resetSpeed"
   ,"latestSpeedLabel"
   ,"实时 — · 平均 —"
-  ,"elapsed < 1000"
+  ,"elapsed < 1200"
   ," · 每帧 "
 ]) assert.ok(source.includes(needle), "missing receiver guard: " + needle);
-assert.ok(indexHtml.includes("app.js?v=88"), "index.html must cache-bust app.js with the current receiver build");
+assert.ok(indexHtml.includes("app.js?v=91"), "index.html must cache-bust app.js with the current receiver build");
 assert.ok(indexHtml.includes('id="fps30"') && indexHtml.includes('id="fps60"'), "receiver must expose a 30/60 camera FPS switch");
 assert.ok(indexHtml.includes('href="vendor/decimen/zxing_reader-EOacYbLr.wasm"'), "the page must preload WASM so the first scan can decode immediately");
 assert.ok(indexHtml.includes('id="cameraFreeze"'), "stop must freeze the last preview frame instead of flashing black");
@@ -202,9 +202,9 @@ assert.ok(source.includes("if (highMultiLayout && codes.length < 2 && (highTrack
 assert.ok(source.includes("if (sighting) return;"), "native BarcodeDetector boxes must not freeze an inferred 4-tile grid");
 assert.ok(source.includes("function pauseHighSpeedJobs"), "Stop must keep compiled WASM workers alive");
 assert.ok(source.includes("pauseHighSpeedJobs();"), "closeCamera must pause jobs without terminating WASM");
-assert.ok(source.includes("startHighSpeedWorker(0);"), "the first WASM worker must boot alone so compile is not doubled");
+assert.ok(source.includes("for (let index = 0; index < HIGH_SPEED_WORKERS; index += 1) startHighSpeedWorker(index);"), "all WASM workers must boot in parallel so short sessions use the full decoder pool");
 assert.ok(source.includes("const HIGH_WORKER_BOOT_MS = 25000;"), "a stuck decoder must be restarted instead of spinning on 正在加载解码器");
-assert.ok(serviceWorker.includes('const CACHE_NAME = "airferry-lite-v88";'), "service worker cache version was not bumped");
+assert.ok(serviceWorker.includes('const CACHE_NAME = "airferry-lite-v91";'), "service worker cache version was not bumped");
 assert.ok(source.includes("parsed.header.layoutCodes === 2") && source.includes("仅支持单码和四码"), "web receiver must reject dual-code streams explicitly");
 assert.ok(source.includes("highQuadFrozen = highTileProven.every(Boolean)"), "inferred quad slots must not be frozen before real calibration");
 assert.ok(!source.includes("highTileProven = (highTrackedTiles || []).map(tile => !!tile)"), "inferred quad slots must not be marked proven");
@@ -220,15 +220,17 @@ assert.ok(source.includes("add(await scanQuadCrops(crops, false));") || source.i
 assert.ok(source.includes("const grabbed = await grabQuadPackedBitmap(region);"), "quad must snapshot the 2x2 once and post the bitmap, not getImageData on the page");
 assert.ok(source.includes("const tiles = locked ? mapCropsToPacked(crops, grabbed) : [];"), "locked quad must crop tiles from the packed 720 inside the worker, not from live video");
 assert.ok(source.includes("tiles.length >= 2 ? 1 : 4"), "acquire keeps maxSymbols 4; locked tiles decode one code per crop");
-assert.ok(source.includes("highGrabInFlight = false") && source.includes("return pending;"), "quad must release the camera grab before waiting for WASM decode");
-assert.ok(source.includes("highWorkerBusy.filter(Boolean).length >= HIGH_QUAD_INFLIGHT"), "quad must cap overlapping 720 video bitmaps");
+assert.ok(source.includes("const slot = slots[0];") && source.includes("highWorkerBusy[slot] = true;"), "quad must reserve a worker before awaiting its camera bitmap");
+assert.ok(source.includes("highQuadJobsInFlight >= HIGH_QUAD_INFLIGHT"), "quad must cap overlapping 720 video bitmaps with bounded frame jobs");
+assert.ok(source.includes("grabPackedRegion(region).finally"), "canvas fallback must stay serialized when bitmap capture is unavailable");
+assert.ok(source.includes("const rollingRates = [0, 0, 0, 0, 0]") && source.includes("speedBps * 0.6 + sample * 0.4"), "speed diagnostics must smooth short camera jitter");
 assert.ok(!source.includes("if (highGrabInFlight || highWorkerBusy.some(Boolean))"), "quad must not wait for every worker before grabbing the next camera frame");
 assert.ok(!source.includes("scanQuadCrops(retries, true)"), "quad must not hold the camera frame for a second decode pass");
 assert.ok(source.includes("正在加载解码器"), "the first scan must wait for WASM instead of dropping frames silently");
 assert.ok(source.includes("  startHighSpeedWorkers();\n})();") || source.includes("  startHighSpeedWorkers();\r\n})();"), "WASM workers must warm up before the camera starts");
 assert.ok(source.includes("previewFps === 30 ? 30 : 60"), "camera FPS switch must only expose 30 and 60");
 assert.ok(!source.includes("HIGH_QUAD_GRAB_MS = previewFps"), "switching preview FPS must not retune the quad grab interval");
-assert.ok(source.includes("const HIGH_QUAD_GRAB_MS = 33;"), "quad grab stays 33 ms regardless of the 30/60 camera switch");
+assert.ok(source.includes("const HIGH_QUAD_GRAB_MS = 12;"), "quad grab must allow a real 60 FPS camera feed while remaining callback-driven");
 assert.ok(!source.includes("function grabQuadTileBitmaps"), "v71 atlas crops from a 1440 video snapshot made this phone stutter");
 assert.ok(!source.includes("function grabQuadTileBitmap"), "quad must not issue one createImageBitmap per tile from the live video");
 assert.ok(!source.includes("function dropDeadCamera"), "a stalled decode must not stop the camera track");
@@ -270,7 +272,7 @@ assert.ok(!source.includes("location.reload()"), "the receiver must not reload i
 assert.ok(serviceWorker.includes("self.clients.claim()"), "the new service worker must still take over open pages");
 assert.ok(!serviceWorker.includes("client.navigate(client.url)"), "activating the worker must not navigate the page and kill getUserMedia");
 assert.ok(serviceWorker.includes("ASSETS.filter((path) => !path.endsWith(\".wasm\"))") || serviceWorker.includes("ASSETS.filter(path => !path.endsWith(\".wasm\"))"), "install must not wait to download WASM before the page can open the camera");
-assert.ok(serviceWorker.includes('const CACHE_NAME = "airferry-lite-v88";'), "service worker cache version was not bumped");
+assert.ok(serviceWorker.includes('const CACHE_NAME = "airferry-lite-v91";'), "service worker cache version was not bumped");
 assert.ok(serviceWorker.includes('path.endsWith(".wasm")'), "service worker must cache WASM/worker files instead of no-store");
 assert.ok(serviceWorker.includes('"./highspeed-protocol.js"') && serviceWorker.includes('"./vendor/decimen/highspeed-decoder-worker.js"') && serviceWorker.includes('"./vendor/decimen/multi-decoder-worker.js"') && serviceWorker.includes('"./vendor/decimen/zxing_reader-EOacYbLr.wasm"'), "high-speed receiver assets are not cached");
 assert.equal(mirrorSource, source, "web-receiver app.js drifted from the published root receiver");

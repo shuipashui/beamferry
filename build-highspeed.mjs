@@ -26,7 +26,8 @@ fs.writeFileSync(output, `${banner}\n${compiled.code}`);
 
 for (const target of [
   path.join(root, "highspeed-protocol.js"),
-  path.join(root, "web-receiver", "highspeed-protocol.js")
+  path.join(root, "web-receiver", "highspeed-protocol.js"),
+  path.join(root, "desktop-receiver", "highspeed-protocol.js")
 ]) {
   fs.copyFileSync(output, target);
 }
