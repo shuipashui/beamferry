@@ -395,7 +395,10 @@ class QrFrameAnalyzer(
         if (!lockedQuad && previousTiles.size >= 4 && transferCount(merged) >= 3) return merged
         if (lockedQuad) {
             val count = transferCount(merged)
-            if (count > 0) quadRecoveryTick.set(0)
+            // Partial quad frames are the condition that needs recovery. Reset
+            // the cadence only after a complete four-slot frame; resetting on
+            // any hit makes 1-3 slot frames suppress recovery indefinitely.
+            if (count >= 4) quadRecoveryTick.set(0)
             val calibrationMask = quadCalibratedMask.get() and 0x0f
             val calibrateNow = calibrationMask != 0x0f &&
                 quadCalibrationTick.incrementAndGet() >= QUAD_CALIBRATION_INTERVAL
