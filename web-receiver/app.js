@@ -1,5 +1,5 @@
 (() => {
-  const RECEIVER_BUILD = "v92";
+  const RECEIVER_BUILD = "v93";
   if ("serviceWorker" in navigator) {
     Promise.resolve(navigator.serviceWorker.register("sw.js?v=" + RECEIVER_BUILD)).then(reg => {
       reg?.update?.()?.catch?.(() => {});
@@ -74,8 +74,10 @@
   const HIGH_SINGLE_INFLIGHT = 4;
   const HIGH_QUAD_INFLIGHT = 3;
   const HIGH_QUAD_GRAB_MS = 12;
-  const HIGH_QUAD_RECOVERY_INTERVAL = 6;
+  const HIGH_QUAD_RECOVERY_INTERVAL = 18;
   const HIGH_QUAD_RECOVERY_CROPS = 2;
+  const HIGH_QUAD_RECOVERY_PAD = 1.65;
+  const HIGH_QUAD_RELOCK_MISSES = 72;
 
   let stream = null;
   let scanTimer = 0;
@@ -183,6 +185,8 @@
   let highQuadRecoveryScans = 0;
   let highQuadRecoveryPending = false;
   let highQuadLastFrameSlots = 0;
+  let highQuadRelocks = 0;
+  let highLastSolveAt = 0;
   let highSingleConfirmed = false;
   let startInFlight = false;
   let cameraEndedWhileStarting = false;
@@ -482,6 +486,8 @@
       highQuadRecoveryScans = 0;
       highQuadRecoveryPending = false;
       highQuadLastFrameSlots = 0;
+      highQuadRelocks = 0;
+      highLastSolveAt = 0;
       lastUsedLuma = false;
     }
     highDecodeMeta.clear();
@@ -1003,19 +1009,35 @@
     if (recovery) {
       highQuadRecoveryScans += 1;
       for (let index = 0; index < 4; index += 1) {
-        if (!seen[index]) continue;
-        highQuadSlotHits[index] += 1;
-        highQuadSlotMisses[index] = 0;
+        if (seen[index]) {
+          highQuadSlotHits[index] += 1;
+          highQuadSlotMisses[index] = 0;
+        } else {
+          highQuadSlotMisses[index] += 1;
+        }
       }
-      return;
+    } else {
+      for (let index = 0; index < 4; index += 1) {
+        if (seen[index]) {
+          highQuadSlotHits[index] += 1;
+          highQuadSlotMisses[index] = 0;
+        } else {
+          highQuadSlotMisses[index] += 1;
+        }
+      }
     }
-    for (let index = 0; index < 4; index += 1) {
-      if (seen[index]) {
-        highQuadSlotHits[index] += 1;
-        highQuadSlotMisses[index] = 0;
-      } else {
-        highQuadSlotMisses[index] += 1;
-      }
+    const staleSlots = highQuadSlotMisses.filter(value => value >= HIGH_QUAD_RELOCK_MISSES).length;
+    if (staleSlots >= 2) {
+      highTrackedTiles = null;
+      highStableQuadTiles = null;
+      highTileProven = [false, false, false, false];
+      highQuadFrozen = false;
+      highScanRoi = null;
+      highQuadRecoveryTick = 0;
+      highQuadRecoveryPending = false;
+      highQuadSlotMisses = [0, 0, 0, 0];
+      highQuadRelocks += 1;
+      return;
     }
     if (highQuadLastFrameSlots >= 4) {
       highQuadRecoveryTick = 0;
@@ -1037,9 +1059,11 @@
       tile,
       score: (highTileProven[index] ? 0 : 1000000) + highQuadSlotMisses[index]
     })).sort((a, b) => b.score - a.score || a.index - b.index);
-    return ranked.slice(0, HIGH_QUAD_RECOVERY_CROPS).map(item =>
-      clampScanRegion(inflateRect(item.tile, HIGH_TILE_PAD))
-    );
+    const weak = new Set(ranked.slice(0, HIGH_QUAD_RECOVERY_CROPS).map(item => item.index));
+    return tiles.map((tile, index) => clampScanRegion(inflateRect(
+      tile,
+      weak.has(index) ? HIGH_QUAD_RECOVERY_PAD : HIGH_TILE_PAD
+    )));
   }
 
   function evenRect(x, y, width, height, maxW, maxH) {
@@ -2141,6 +2165,8 @@
     highQuadRecoveryScans = 0;
     highQuadRecoveryPending = false;
     highQuadLastFrameSlots = 0;
+    highQuadRelocks = 0;
+    highLastSolveAt = 0;
     lastUsedLuma = false;
     lastCapturePath = "—";
     highDecodeMeta.clear();
@@ -2237,8 +2263,10 @@
       resetSpeed();
     }
     const before = highDecoder.framesNew;
+    const solvedBefore = highDecoder.solvedCount;
     highDecoder.addFrame(header.seq, block);
     if (highDecoder.framesNew > before) updateSpeed(block.length);
+    if (highDecoder.solvedCount > solvedBefore) highLastSolveAt = performance.now();
     lastFrameAt = performance.now();
     updateHighSpeedProgress();
     if (highDecoder.isComplete) void finishHighSpeed();
@@ -2698,12 +2726,16 @@
         " · 帧任务 " + highQuadJobsInFlight + "/" + HIGH_QUAD_INFLIGHT +
         " · 忙时丢弃 " + workerBusyDrops + " · 重启 " + workerRestarts + " · 错误 " + workerErrors +
         " · 连续未识别 " + highScanMisses +
-        (highMultiLayout ? " · 补扫 " + highQuadRecoveryScans + " · 格命中 " + highQuadSlotHits.join("/") +
+        (highMultiLayout ? " · 补扫 " + highQuadRecoveryScans + " · 重校准 " + highQuadRelocks + " · 格命中 " + highQuadSlotHits.join("/") +
           " · 格漏失 " + highQuadSlotMisses.join("/") : ""),
       "协议：识别 " + highFramesSeen + " · 唯一 " + highUniqueFrames + " · 重复 " + highDuplicateFrames +
         " · 拒绝双码 " + unsupportedDualFrames + " · 无效 " + highInvalidFrames + " · 序列跳跃 " + highSequenceGaps +
         " · 解块 " + (highDecoder?.solvedCount || 0) + "/" + (highDecoder?.k || 0) +
         " · 尾部消元 " + (highDecoder?.denseAttempts || 0) + "/" + (highDecoder?.denseSolved || 0),
+      "尾段：剩余 " + (highDecoder ? Math.max(0, highDecoder.k - highDecoder.solvedCount) : "—") +
+        " · 唯一率 " + (highFramesSeen ? (highUniqueFrames * 100 / highFramesSeen).toFixed(1) + "%" : "—") +
+        " · 新序列距今 " + (highLastFrameAt ? Math.max(0, Math.round(performance.now() - highLastFrameAt)) + " ms" : "—") +
+        " · 新解块距今 " + (highLastSolveAt ? Math.max(0, Math.round(performance.now() - highLastSolveAt)) + " ms" : "—"),
       "高速会话：最近帧 " + (highLastFrameAt ? Math.max(0, Math.round(performance.now() - highLastFrameAt)) + " ms" : "—") +
         " · 有效载荷 " + formatBytes(highProtocolBytes) + " · 速度 " + latestSpeedLabel +
         " · 会话 " + formatRate(sessionAverageBps) + " · 流 " + (highHeader ? H.streamIdentity(highHeader) : "—"),

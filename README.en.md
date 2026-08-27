@@ -20,7 +20,7 @@ BeamFerry transfers a file from a computer screen to a phone camera as a live QR
 
 The web receiver requires HTTPS or `localhost` for camera access. Android 10 or later is required for the native receiver.
 
-Current release baseline: Android `0.8.135-quad-stall-classifier` (`versionCode 148`) and web receiver `v92`.
+Current release baseline: Android `0.8.135-quad-stall-classifier` (`versionCode 148`) and web receiver `v93`.
 
 ## Features
 
@@ -85,7 +85,7 @@ AFL2 uses a compact 20-byte binary header followed by a fountain-code block. Sys
 
 ### Web
 
-The browser receiver uses the latest available video frames and bounded worker concurrency; it does not build an unbounded decode queue. Single-code mode tracks one tight ROI. Four-code mode calibrates four physical slots independently and freezes only slots confirmed by real QR hits. `v92` keeps the stable desktop receiver pipeline as its baseline: workers warm in parallel, at most three camera-frame jobs remain in flight, and a worker is reserved before bitmap capture. Fully calibrated quad geometry is cached separately. Normal frames still scan all four slots; after every six incomplete frames, at most two missing slots receive one targeted recovery scan, and only that recovery enables the alternate binarizer. Capable Android devices use three workers and a 720-pixel atlas; lower-tier Android devices retain two workers and a 680-pixel atlas.
+The browser receiver uses the latest available video frames and bounded worker concurrency; it does not build an unbounded decode queue. Single-code mode tracks one tight ROI. Four-code mode calibrates four physical slots independently and freezes only slots confirmed by real QR hits. `v93` keeps the stable desktop receiver pipeline as its baseline: workers warm in parallel, at most three camera-frame jobs remain in flight, and a worker is reserved before bitmap capture. Fully calibrated quad geometry is cached separately. Recovery no longer replaces a normal four-slot job. Every 18 incomplete frames it enlarges at most the two weakest crops while retaining all four slots, and persistent loss of two slots triggers fresh calibration. Diagnostics now expose remaining blocks, unique-frame yield, time since the last new sequence and solved block, and relock count. Capable Android devices use three workers and a 720-pixel atlas; lower-tier Android devices retain two workers and a 680-pixel atlas.
 
 The browser build limits a transfer to 64 MiB. Refreshing or closing the page discards an active AFL2 reconstruction.
 
