@@ -4,11 +4,8 @@ internal object LumaContrast {
     fun looksLikeDenseQr(luma: LumaSnapshot): Boolean {
         val buffer = luma.buffer.duplicate().apply { rewind() }
         val limit = buffer.limit()
-        // A fixed 32-pixel stride aliases badly with QR module grids (for example an
-        // 8-pixel checker samples the same colour forever). Keep roughly 9x9 samples
-        // but use non-power-of-two, geometry-relative strides.
-        val stepX = (luma.width / 9 + 1).coerceAtMost(luma.width.coerceAtLeast(1))
-        val stepY = (luma.height / 9 + 1).coerceAtMost(luma.height.coerceAtLeast(1))
+        val stepX = 32.coerceAtMost(luma.width.coerceAtLeast(1))
+        val stepY = 32.coerceAtMost(luma.height.coerceAtLeast(1))
         var samples = 0
         var dark = 0
         var bright = 0

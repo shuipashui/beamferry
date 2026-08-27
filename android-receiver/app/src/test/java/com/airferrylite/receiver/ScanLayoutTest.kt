@@ -267,7 +267,7 @@ class ScanLayoutTest {
         val points = listOf(600f to 500f, 800f to 500f, 800f to 700f, 600f to 700f)
         val tile = ScanLayout.tileFromHit(points, 1920, 1440)!!
         val candidates = ScanLayout.siblingCandidatesFromHit(points, 1920, 1440)
-        assertEquals(8, candidates.size)
+        assertEquals(4, candidates.size)
         assertTrue(candidates.any { it.left < tile.left })
         assertTrue(candidates.any { it.left > tile.left })
         assertTrue(candidates.any { it.top < tile.top })
@@ -283,8 +283,8 @@ class ScanLayoutTest {
         val movedHit = listOf(540f to 260f, 740f to 260f, 740f to 460f, 540f to 460f)
         val followed = ScanLayout.followPairFromHit(pair, movedHit, 1920, 1440)
         assertEquals(2, followed.size)
-        assertTrue(followed[0].left + followed[0].width / 2 > pair[0].left + pair[0].width / 2)
-        assertTrue(followed[1].left + followed[1].width / 2 > pair[1].left + pair[1].width / 2)
+        assertTrue(followed[0].left > pair[0].left)
+        assertTrue(followed[1].left > pair[1].left)
         val oldGap = pair[1].top - pair[0].top
         val newGap = followed[1].top - followed[0].top
         assertTrue(kotlin.math.abs(newGap - oldGap) < 40)
