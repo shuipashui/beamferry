@@ -319,6 +319,10 @@ class MainActivity : AppCompatActivity() {
         }
         receiveSessionFromContinue = false
         skipHalWaitOnBeginReceive = true
+        // A normal new session may reuse the already-bound preview. Let AE/AF and
+        // the CameraX buffer settle before the first quad-location scans; otherwise
+        // the cold first run can poison slot acquisition while warm retries work.
+        settlePreviewBeforeAnalyze = true
         beginReceive()
     }
 
