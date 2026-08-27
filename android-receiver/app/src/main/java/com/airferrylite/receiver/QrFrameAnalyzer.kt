@@ -389,14 +389,17 @@ class QrFrameAnalyzer(
             add(decoder.read(luma, ScanLayout.centerSquare(luma.width, luma.height), 4))
         }
         if (transferCount(merged) >= 4) return merged
-        if (previousTiles.size >= 4 && transferCount(merged) >= 3) return merged
+        // A partial quad result is useful, but it must not suppress the periodic
+        // missing-slot probe on the 60 FPS full-frame path. Without this, one
+        // intermittently invisible slot can remain unprobed for the whole session.
+        if (!lockedQuad && previousTiles.size >= 4 && transferCount(merged) >= 3) return merged
         if (lockedQuad) {
             val count = transferCount(merged)
             if (count > 0) quadRecoveryTick.set(0)
             val calibrationMask = quadCalibratedMask.get() and 0x0f
             val calibrateNow = calibrationMask != 0x0f &&
                 quadCalibrationTick.incrementAndGet() >= QUAD_CALIBRATION_INTERVAL
-            val recoverNow = calibrateNow || count == 0 && (
+            val recoverNow = calibrateNow || count < 4 && (
                 quadRecoveryTick.incrementAndGet() >= QUAD_RECOVERY_INTERVAL
                 )
             if (recoverNow) {
@@ -958,7 +961,9 @@ class QrFrameAnalyzer(
         private const val STALE_TIMESTAMP_LIMIT = 12
         private const val TILE_UNDERCOUNT_LIMIT = 3
         private const val DUAL_RECOVERY_INTERVAL = 8
-        private const val QUAD_RECOVERY_INTERVAL = 12
+        // Probe missing slots often enough to recover rolling-shutter misses,
+        // while keeping the normal four-worker pass as the hot path.
+        private const val QUAD_RECOVERY_INTERVAL = 6
         private const val QUAD_SLOT_RECOVERY_MISSES = 12
         private const val QUAD_FROZEN_MISS_LIMIT = 24
         private const val QUAD_CALIBRATION_INTERVAL = 4
