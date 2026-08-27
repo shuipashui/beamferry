@@ -936,10 +936,10 @@ class QrFrameAnalyzer(
         private const val QUAD_RECOVERY_INTERVAL = 12
         private const val QUAD_SLOT_RECOVERY_MISSES = 12
         private const val QUAD_CALIBRATION_INTERVAL = 4
-        // V33 symbols leave little tolerance for rolling-shutter corner skew. Keep
-        // enough quiet-zone context around a calibrated slot without widening the
-        // full-frame bootstrap path used by other layouts.
-        private const val QUAD_CALIBRATED_TILE_PAD = 1.55f
+        // regionFromPoints(codeCount = 1) already adds 1.35x padding around the
+        // detected symbol. Do not inflate it again: overlapping calibrated crops
+        // make maxSymbols=1 workers repeatedly return the same neighboring code.
+        private const val QUAD_CALIBRATED_TILE_PAD = 1.0f
         private const val BOOTSTRAP_RETRY_INTERVAL = 8
         private const val STABLE_CACHE_MISS_LIMIT = 3
     }

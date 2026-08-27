@@ -263,6 +263,19 @@ class ScanLayoutTest {
     }
 
     @Test
+    fun singleCodeCalibrationDoesNotReachNeighborCenter() {
+        val leftCode = listOf(
+            250f to 250f,
+            550f to 250f,
+            550f to 550f,
+            250f to 550f
+        )
+        val calibrated = ScanLayout.regionFromPoints(leftCode, 1440, 1440, 1)!!
+        assertTrue(400 in calibrated.left until (calibrated.left + calibrated.width))
+        assertTrue(1040 !in calibrated.left until (calibrated.left + calibrated.width))
+    }
+
+    @Test
     fun siblingCandidatesProbeBothAxes() {
         val points = listOf(600f to 500f, 800f to 500f, 800f to 700f, 600f to 700f)
         val tile = ScanLayout.tileFromHit(points, 1920, 1440)!!
