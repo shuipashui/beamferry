@@ -1,5 +1,5 @@
 (() => {
-  const RECEIVER_BUILD = "v93";
+  const RECEIVER_BUILD = "v94";
   if ("serviceWorker" in navigator) {
     Promise.resolve(navigator.serviceWorker.register("sw.js?v=" + RECEIVER_BUILD)).then(reg => {
       reg?.update?.()?.catch?.(() => {});
@@ -78,6 +78,7 @@
   const HIGH_QUAD_RECOVERY_CROPS = 2;
   const HIGH_QUAD_RECOVERY_PAD = 1.65;
   const HIGH_QUAD_RELOCK_MISSES = 72;
+  const HIGH_QUAD_RELOCK_STALL_MS = 1200;
 
   let stream = null;
   let scanTimer = 0;
@@ -106,10 +107,11 @@
   let sessionStartedAt = 0;
   let sessionUniqueBytes = 0;
   let sessionAverageBps = 0;
+  let completedSessionDurationMs = -1;
   const rollingRates = [0, 0, 0, 0, 0];
   let rollingCount = 0;
   let rollingIndex = 0;
-  let latestSpeedLabel = "实时 — · 平均 —";
+  let latestSpeedLabel = "实时 — · 滚动 —";
   let decodeWorker = null;
   let decodeRequestId = 0;
   let workerDisabled = typeof Worker !== "function";
@@ -292,6 +294,7 @@
     }
     if (cameraPreviewLive()) return;
     if (stream) closeCamera();
+    reset();
     startInFlight = true;
     cameraEndedWhileStarting = false;
     startBtn.disabled = true;
@@ -1027,7 +1030,8 @@
       }
     }
     const staleSlots = highQuadSlotMisses.filter(value => value >= HIGH_QUAD_RELOCK_MISSES).length;
-    if (staleSlots >= 2) {
+    const uniqueStalled = highLastFrameAt > 0 && performance.now() - highLastFrameAt >= HIGH_QUAD_RELOCK_STALL_MS;
+    if (staleSlots >= 2 && uniqueStalled) {
       highTrackedTiles = null;
       highStableQuadTiles = null;
       highTileProven = [false, false, false, false];
@@ -2291,13 +2295,18 @@
       if (!container || H.fnv1a(container) !== highHeader.payloadFnv) throw new Error("高速流校验失败");
       const opticalFile = await H.unpackFile(container);
       if (!(await H.verifyFile(opticalFile))) throw new Error("文件 SHA-256 校验失败");
-      const seconds = Math.max(0.001, (performance.now() - highStartedAt) / 1000);
+      const finishedAt = performance.now();
+      completedSessionDurationMs = sessionStartedAt ? Math.max(0, finishedAt - sessionStartedAt) : 0;
+      if (completedSessionDurationMs > 0) {
+        sessionAverageBps = sessionUniqueBytes / (completedSessionDurationMs / 1000);
+      }
       const blob = new Blob([opticalFile.bytes], { type: opticalFile.type });
       if (download.href) URL.revokeObjectURL(download.href);
       download.href = URL.createObjectURL(blob);
       download.download = opticalFile.name;
       fileName.textContent = opticalFile.name;
-      resultInfo.textContent = formatBytes(opticalFile.bytes.length) + " · " + formatRate(container.length / seconds) + " · SHA-256 校验通过";
+      resultInfo.textContent = formatBytes(opticalFile.bytes.length) + " · 总耗时 " + formatDuration(completedSessionDurationMs) +
+        " · 全程平均 " + formatRate(sessionAverageBps) + " · SHA-256 校验通过";
       result.hidden = false;
       progressText.textContent = "100% (" + highDecoder.k + "/" + highDecoder.k + ")";
       progressBar.style.width = "100%";
@@ -2627,10 +2636,11 @@
     sessionStartedAt = 0;
     sessionUniqueBytes = 0;
     sessionAverageBps = 0;
+    completedSessionDurationMs = -1;
     rollingCount = 0;
     rollingIndex = 0;
     rollingRates.fill(0);
-    latestSpeedLabel = "实时 — · 平均 —";
+    latestSpeedLabel = "实时 — · 滚动 —";
     speedText.textContent = latestSpeedLabel;
   }
 
@@ -2640,21 +2650,42 @@
     if (!speedWindowStartedAt) speedWindowStartedAt = now;
     sessionUniqueBytes += byteCount;
     speedWindowBytes += byteCount;
+    sessionAverageBps = sessionUniqueBytes / Math.max(0.001, (now - sessionStartedAt) / 1000);
     const elapsed = now - speedWindowStartedAt;
     if (elapsed < 1200) return;
     const sample = speedWindowBytes / (elapsed / 1000);
-    speedBps = speedBps ? speedBps * 0.6 + sample * 0.4 : sample;
+    speedBps = sample;
     rollingRates[rollingIndex] = sample;
     rollingIndex = (rollingIndex + 1) % rollingRates.length;
     rollingCount = Math.min(rollingRates.length, rollingCount + 1);
     let rollingSum = 0;
     for (let index = 0; index < rollingCount; index += 1) rollingSum += rollingRates[index];
     const rolling = rollingSum / rollingCount;
-    sessionAverageBps = sessionUniqueBytes / Math.max(0.001, (now - sessionStartedAt) / 1000);
-    latestSpeedLabel = "实时 " + formatRate(speedBps) + " · 平均 " + formatRate(rolling);
+    latestSpeedLabel = "实时 " + formatRate(speedBps) + " · 滚动 " + formatRate(rolling);
     speedText.textContent = latestSpeedLabel;
     speedWindowStartedAt = now;
     speedWindowBytes = 0;
+  }
+
+  function formatDuration(ms) {
+    if (!Number.isFinite(ms) || ms < 0) return "—";
+    if (ms < 1000) return Math.round(ms) + " ms";
+    if (ms < 60000) return (ms / 1000).toFixed(1) + " s";
+    const minutes = Math.floor(ms / 60000);
+    return minutes + ":" + ((ms % 60000) / 1000).toFixed(1).padStart(4, "0");
+  }
+
+  function sessionElapsedMs(now = performance.now()) {
+    if (completedSessionDurationMs >= 0) return completedSessionDurationMs;
+    return sessionStartedAt ? Math.max(0, now - sessionStartedAt) : -1;
+  }
+
+  function displayedSpeedLabel(now = performance.now()) {
+    if (!highLastFrameAt || now - highLastFrameAt < 1800) return latestSpeedLabel;
+    let rollingSum = 0;
+    for (let index = 0; index < rollingCount; index += 1) rollingSum += rollingRates[index];
+    const rolling = rollingCount ? rollingSum / rollingCount : 0;
+    return "实时 0 B/s · 滚动 " + (rollingCount ? formatRate(rolling) : "—");
   }
 
   function perFrameLabel() {
@@ -2708,6 +2739,19 @@
     const backend = highWorkers.length ? (lastUsedLuma ? "AFL2 zxing-cpp Y" : "AFL2 WASM RGBA") : lastDecodeBackend;
     const workerCount = highWorkers.length || lastWorkerCount;
     const avgDecode = decodeSamples ? (decodeTimeMs / decodeSamples).toFixed(1) + " ms" : "—";
+    const now = performance.now();
+    const speedLabel = displayedSpeedLabel(now);
+    if (highSpeedActive) speedText.textContent = speedLabel;
+    if (sessionStartedAt && completedSessionDurationMs < 0) {
+      sessionAverageBps = sessionUniqueBytes / Math.max(0.001, (now - sessionStartedAt) / 1000);
+    }
+    const uniqueAge = highLastFrameAt ? Math.max(0, Math.round(now - highLastFrameAt)) : null;
+    const solvedAge = highLastSolveAt ? Math.max(0, Math.round(now - highLastSolveAt)) : null;
+    const progressState = uniqueAge != null && uniqueAge >= 1800
+      ? "光学/重复停顿"
+      : solvedAge != null && solvedAge >= 1800
+        ? "解块等待"
+        : highUniqueFrames ? "推进中" : "等待首帧";
     diagnosticsEl.textContent = [
       "网页：" + RECEIVER_BUILD + " · Worker " + (highWorkers.length || lastWorkerCount) + " · 原生定位 " + (barcodeDetector ? "开" : "关"),
       "相机：" + (settings.width || video.videoWidth || "?") + "×" + (settings.height || video.videoHeight || "?") +
@@ -2732,13 +2776,14 @@
         " · 拒绝双码 " + unsupportedDualFrames + " · 无效 " + highInvalidFrames + " · 序列跳跃 " + highSequenceGaps +
         " · 解块 " + (highDecoder?.solvedCount || 0) + "/" + (highDecoder?.k || 0) +
         " · 尾部消元 " + (highDecoder?.denseAttempts || 0) + "/" + (highDecoder?.denseSolved || 0),
-      "尾段：剩余 " + (highDecoder ? Math.max(0, highDecoder.k - highDecoder.solvedCount) : "—") +
+      "尾段：" + progressState + " · 剩余 " + (highDecoder ? Math.max(0, highDecoder.k - highDecoder.solvedCount) : "—") +
         " · 唯一率 " + (highFramesSeen ? (highUniqueFrames * 100 / highFramesSeen).toFixed(1) + "%" : "—") +
-        " · 新序列距今 " + (highLastFrameAt ? Math.max(0, Math.round(performance.now() - highLastFrameAt)) + " ms" : "—") +
-        " · 新解块距今 " + (highLastSolveAt ? Math.max(0, Math.round(performance.now() - highLastSolveAt)) + " ms" : "—"),
-      "高速会话：最近帧 " + (highLastFrameAt ? Math.max(0, Math.round(performance.now() - highLastFrameAt)) + " ms" : "—") +
-        " · 有效载荷 " + formatBytes(highProtocolBytes) + " · 速度 " + latestSpeedLabel +
-        " · 会话 " + formatRate(sessionAverageBps) + " · 流 " + (highHeader ? H.streamIdentity(highHeader) : "—"),
+        " · 新序列距今 " + (uniqueAge == null ? "—" : uniqueAge + " ms") +
+        " · 新解块距今 " + (solvedAge == null ? "—" : solvedAge + " ms"),
+      "高速会话：总耗时 " + formatDuration(sessionElapsedMs(now)) +
+        " · 最近帧 " + (uniqueAge == null ? "—" : uniqueAge + " ms") +
+        " · 唯一载荷 " + formatBytes(highProtocolBytes) + " · 速度 " + speedLabel +
+        " · 全程平均 " + formatRate(sessionAverageBps) + " · 流 " + (highHeader ? H.streamIdentity(highHeader) : "—"),
       "环境：" + (navigator.userAgent || "未知")
         + " · 线程 " + HARDWARE_THREADS + " · 内存 " + (DEVICE_MEMORY_GB || "?") + " GB"
     ].join("\n");
