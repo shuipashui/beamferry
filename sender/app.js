@@ -80,7 +80,9 @@
   const HIGH_QUEUE_LIMIT = 8;
   const QUIET_MODULES = 2;
   const MULTI_QUIET_MODULES = 4;
-  const QUAD_HIGH_FPS_QUIET_MODULES = 2;
+  // Keep a small but explicit gap between the four V33 symbols at 60 FPS.
+  // Three modules is a compromise between optical isolation and symbol size.
+  const QUAD_HIGH_FPS_QUIET_MODULES = 3;
   const LINK_QUIET_MODULES = 4;
   const COMMON_HZ = [60, 75, 90, 120, 144, 165, 240];
   const QUAD_PAIRS = [[0, 3], [1, 2]];
