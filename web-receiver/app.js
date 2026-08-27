@@ -1,5 +1,5 @@
 (() => {
-  const RECEIVER_BUILD = "v91";
+  const RECEIVER_BUILD = "v92";
   if ("serviceWorker" in navigator) {
     Promise.resolve(navigator.serviceWorker.register("sw.js?v=" + RECEIVER_BUILD)).then(reg => {
       reg?.update?.()?.catch?.(() => {});
@@ -74,6 +74,8 @@
   const HIGH_SINGLE_INFLIGHT = 4;
   const HIGH_QUAD_INFLIGHT = 3;
   const HIGH_QUAD_GRAB_MS = 12;
+  const HIGH_QUAD_RECOVERY_INTERVAL = 6;
+  const HIGH_QUAD_RECOVERY_CROPS = 2;
 
   let stream = null;
   let scanTimer = 0;
@@ -174,6 +176,13 @@
   let highTileProven = [false, false, false, false];
   let highQuadFrozen = false;
   let highQuadCursor = 0;
+  let highStableQuadTiles = null;
+  let highQuadSlotHits = [0, 0, 0, 0];
+  let highQuadSlotMisses = [0, 0, 0, 0];
+  let highQuadRecoveryTick = 0;
+  let highQuadRecoveryScans = 0;
+  let highQuadRecoveryPending = false;
+  let highQuadLastFrameSlots = 0;
   let highSingleConfirmed = false;
   let startInFlight = false;
   let cameraEndedWhileStarting = false;
@@ -466,6 +475,13 @@
       lastPostedScanSize = 0;
       highTileProven = [false, false, false, false];
       highQuadFrozen = false;
+      highStableQuadTiles = null;
+      highQuadSlotHits = [0, 0, 0, 0];
+      highQuadSlotMisses = [0, 0, 0, 0];
+      highQuadRecoveryTick = 0;
+      highQuadRecoveryScans = 0;
+      highQuadRecoveryPending = false;
+      highQuadLastFrameSlots = 0;
       lastUsedLuma = false;
     }
     highDecodeMeta.clear();
@@ -960,6 +976,70 @@
       highTrackedTiles = inferMissingQuadTiles(highTrackedTiles);
     }
     highQuadFrozen = highTileProven.every(Boolean);
+    if (highQuadFrozen && highTrackedTiles && highTrackedTiles.every(Boolean)) {
+      highStableQuadTiles = highTrackedTiles.map(tile => ({ ...tile }));
+    }
+  }
+
+  function activeQuadTiles() {
+    const stable = highStableQuadTiles && highStableQuadTiles.length === 4
+      ? highStableQuadTiles
+      : null;
+    return inferMissingQuadTiles(stable || highTrackedTiles).filter(Boolean);
+  }
+
+  function noteQuadSlotResults(transferHits, recovery) {
+    if (!highMultiLayout) return;
+    const tiles = activeQuadTiles();
+    if (tiles.length < 3) return;
+    const seen = [false, false, false, false];
+    for (const hit of transferHits) {
+      const center = hitCenter(hit);
+      if (!center) continue;
+      const owner = quadGridSlot(center.x, center.y, tiles);
+      if (owner >= 0 && owner < 4) seen[owner] = true;
+    }
+    highQuadLastFrameSlots = seen.filter(Boolean).length;
+    if (recovery) {
+      highQuadRecoveryScans += 1;
+      for (let index = 0; index < 4; index += 1) {
+        if (!seen[index]) continue;
+        highQuadSlotHits[index] += 1;
+        highQuadSlotMisses[index] = 0;
+      }
+      return;
+    }
+    for (let index = 0; index < 4; index += 1) {
+      if (seen[index]) {
+        highQuadSlotHits[index] += 1;
+        highQuadSlotMisses[index] = 0;
+      } else {
+        highQuadSlotMisses[index] += 1;
+      }
+    }
+    if (highQuadLastFrameSlots >= 4) {
+      highQuadRecoveryTick = 0;
+      highQuadRecoveryPending = false;
+      return;
+    }
+    highQuadRecoveryTick += 1;
+    if (highQuadRecoveryTick >= HIGH_QUAD_RECOVERY_INTERVAL) {
+      highQuadRecoveryTick = 0;
+      highQuadRecoveryPending = true;
+    }
+  }
+
+  function recoveryQuadCrops() {
+    const tiles = activeQuadTiles();
+    if (!tiles.length) return [];
+    const ranked = tiles.map((tile, index) => ({
+      index,
+      tile,
+      score: (highTileProven[index] ? 0 : 1000000) + highQuadSlotMisses[index]
+    })).sort((a, b) => b.score - a.score || a.index - b.index);
+    return ranked.slice(0, HIGH_QUAD_RECOVERY_CROPS).map(item =>
+      clampScanRegion(inflateRect(item.tile, HIGH_TILE_PAD))
+    );
   }
 
   function evenRect(x, y, width, height, maxW, maxH) {
@@ -1335,7 +1415,7 @@
     };
   }
 
-  function rememberQuadHits(hits) {
+  function rememberQuadHits(hits, recovery = false) {
     const transferHits = hits.filter(hit => transferHitKey(hit));
     if (!transferHits.length) {
       const missLimit = highQuadFrozen ? HIGH_QUAD_FROZEN_MISS_LIMIT : HIGH_QUAD_TILE_MISS_LIMIT;
@@ -1343,8 +1423,10 @@
         highTrackedTiles = null;
         highTileProven = [false, false, false, false];
         highQuadFrozen = false;
+        highStableQuadTiles = null;
       }
       highScanMisses += 1;
+      noteQuadSlotResults([], recovery);
       return;
     }
     highScanMisses = 0;
@@ -1396,6 +1478,7 @@
         if (tiles.length) lockQuadSlots(tiles, false);
       }
     }
+    noteQuadSlotResults(transferHits, recovery);
   }
 
   async function grabQuadPackedBitmap(source) {
@@ -1492,7 +1575,7 @@
   }
 
   function pickQuadCrops(count) {
-    const inferred = inferMissingQuadTiles(highTrackedTiles).filter(Boolean).map(tile => clampScanRegion(inflateRect(tile, HIGH_TILE_PAD)));
+    const inferred = activeQuadTiles().map(tile => clampScanRegion(inflateRect(tile, HIGH_TILE_PAD)));
     const region = inferred.length >= 3 ? unionScanCrops(inferred) : chooseQuadRegion();
     const all = inferred.length >= 3 ? inferred : overlappingQuadrants(region);
     if (!all.length || count <= 0) return { crops: [], region };
@@ -1577,10 +1660,12 @@
     lastQuadGrabAt = now;
     void (async () => {
       try {
-        const { crops } = pickQuadCrops(4);
+        const recovery = highQuadRecoveryPending && activeQuadTiles().length >= 3;
+        const crops = recovery ? recoveryQuadCrops() : pickQuadCrops(4).crops;
         if (!crops.length) return;
-        const hits = await scanQuadCrops(crops, false);
-        rememberQuadHits(hits);
+        if (recovery) highQuadRecoveryPending = false;
+        const hits = await scanQuadCrops(crops, recovery);
+        rememberQuadHits(hits, recovery);
       } finally {
         highQuadJobsInFlight = Math.max(0, highQuadJobsInFlight - 1);
       }
@@ -2049,6 +2134,13 @@
     lastNativeLocate = 0;
     highTileProven = [false, false, false, false];
     highQuadFrozen = false;
+    highStableQuadTiles = null;
+    highQuadSlotHits = [0, 0, 0, 0];
+    highQuadSlotMisses = [0, 0, 0, 0];
+    highQuadRecoveryTick = 0;
+    highQuadRecoveryScans = 0;
+    highQuadRecoveryPending = false;
+    highQuadLastFrameSlots = 0;
     lastUsedLuma = false;
     lastCapturePath = "—";
     highDecodeMeta.clear();
@@ -2600,11 +2692,14 @@
         (highScanRoi ? " · ROI" : " · 全图") +
         (highTrackedTiles ? " · 格 " + highTrackedTiles.filter(Boolean).length : "") +
         (highMultiLayout ? " · 校准 " + highTileProven.filter(Boolean).length + "/4" : "") +
-        (highMultiLayout && lastQuadTiles >= 2 ? " · 切格" : "") + perFrameLabel(),
+        (highMultiLayout && lastQuadTiles >= 2 ? " · 切格" : "") +
+        (highMultiLayout ? " · 本帧格 " + highQuadLastFrameSlots : "") + perFrameLabel(),
       "调度：Worker 就绪 " + highWorkerReady.filter(Boolean).length + "/" + workerCount +
         " · 帧任务 " + highQuadJobsInFlight + "/" + HIGH_QUAD_INFLIGHT +
         " · 忙时丢弃 " + workerBusyDrops + " · 重启 " + workerRestarts + " · 错误 " + workerErrors +
-        " · 连续未识别 " + highScanMisses,
+        " · 连续未识别 " + highScanMisses +
+        (highMultiLayout ? " · 补扫 " + highQuadRecoveryScans + " · 格命中 " + highQuadSlotHits.join("/") +
+          " · 格漏失 " + highQuadSlotMisses.join("/") : ""),
       "协议：识别 " + highFramesSeen + " · 唯一 " + highUniqueFrames + " · 重复 " + highDuplicateFrames +
         " · 拒绝双码 " + unsupportedDualFrames + " · 无效 " + highInvalidFrames + " · 序列跳跃 " + highSequenceGaps +
         " · 解块 " + (highDecoder?.solvedCount || 0) + "/" + (highDecoder?.k || 0) +
