@@ -517,7 +517,9 @@ class MainActivity : AppCompatActivity() {
             "四码高帧率早期命中率偏低，正在重新定相（${quadPhaseRecovery.attempts}/3）"
         }
         quadPhaseRecovery.rebase(frames, hits)
-        restartScanner(countRecovery = false, forceRebind = true, preserveQuadCalibration = true)
+        // A rephase must reacquire optical slots as well as camera timing. Keeping a
+        // poisoned four-slot cache makes every retry scan the same wrong regions.
+        restartScanner(countRecovery = false, forceRebind = true, preserveQuadCalibration = false)
     }
 
     private fun showIdle() {

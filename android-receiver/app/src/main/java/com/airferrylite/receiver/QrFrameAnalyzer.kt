@@ -358,6 +358,11 @@ class QrFrameAnalyzer(
         if (previousTiles.isNotEmpty()) {
             val crops = if (lockedDual && previousTiles.size == 2) {
                 previousTiles.map { ScanLayout.inflateRect(it, 1.22f, luma.width, luma.height) }
+            } else if (lockedQuad && quadFullRefresh60.get()) {
+                // Full-refresh 60 FPS is sensitive to one bad early calibration.
+                // Keep four isolated, deterministic slots on the hot path; the
+                // tracked geometry remains useful for diagnostics and reacquisition.
+                quadTileGrid(luma.width, luma.height)
             } else {
                 previousTiles
             }
@@ -616,7 +621,7 @@ class QrFrameAnalyzer(
         }
         if (quadStream.get() || hasQuadLayout) {
             quadFrameCounts.incrementAndGet(transferHits.size.coerceIn(0, 4))
-            recordQuadSlotHits(transferHits)
+            recordQuadSlotHits(imageWidth, imageHeight, transferHits)
         }
         if (dualStream.get()) {
             if (transferHits.size >= 2) dualCompleteFrames.incrementAndGet()
@@ -632,7 +637,10 @@ class QrFrameAnalyzer(
                 dualStream.get() || lockedTiles >= 2 -> 6
                 else -> 2
             }
-            if (miss >= missLimit && !quadFullRefresh60.get()) {
+            if (quadFullRefresh60.get() && miss >= QUAD_FROZEN_MISS_LIMIT) {
+                clearQuadCalibration()
+                trackedRoi.set(null)
+            } else if (miss >= missLimit && !quadFullRefresh60.get()) {
                 trackedTiles.set(null)
                 tileUndercount.set(0)
             }
@@ -821,16 +829,32 @@ class QrFrameAnalyzer(
         }
     }
 
-    private fun recordQuadSlotHits(hits: List<NativeHit>) {
+    private fun recordQuadSlotHits(imageWidth: Int, imageHeight: Int, hits: List<NativeHit>) {
         val slots = (trackedTiles.get()?.takeIf { it.size >= 4 } ?: stableQuadTiles.get()).orEmpty()
         if (slots.size < 4) return
         for (hit in hits) {
             if (hit.points.isEmpty()) continue
             val cx = (hit.originLeft + hit.points.map { it.first }.average()).toFloat()
             val cy = (hit.originTop + hit.points.map { it.second }.average()).toFloat()
-            val owner = ScanLayout.ownerIndex(slots, cx, cy)
+            val owner = if (quadFullRefresh60.get()) {
+                quadGridOwner(imageWidth, imageHeight, cx, cy)
+            } else {
+                ScanLayout.ownerIndex(slots, cx, cy)
+            }
             if (owner in 0..3) quadSlotHits.incrementAndGet(owner)
         }
+    }
+
+    private fun clearQuadCalibration() {
+        stableQuadTiles.set(null)
+        trackedTiles.set(null)
+        quadCalibratedMask.set(0)
+        quadCalibrationCompletedAtFrame.set(0)
+        quadCalibrationCompletedAtScan.set(0)
+        quadCalibrationTick.set(0)
+        quadRecoveryTick.set(0)
+        roiMisses.set(0)
+        for (index in 0 until 4) quadSlotMissStreak.set(index, 0)
     }
 
     private fun quadGridOwner(width: Int, height: Int, x: Float, y: Float): Int {
@@ -935,6 +959,7 @@ class QrFrameAnalyzer(
         private const val DUAL_RECOVERY_INTERVAL = 8
         private const val QUAD_RECOVERY_INTERVAL = 12
         private const val QUAD_SLOT_RECOVERY_MISSES = 12
+        private const val QUAD_FROZEN_MISS_LIMIT = 24
         private const val QUAD_CALIBRATION_INTERVAL = 4
         // regionFromPoints(codeCount = 1) already adds 1.35x padding around the
         // detected symbol. Do not inflate it again: overlapping calibrated crops
