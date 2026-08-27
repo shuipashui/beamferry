@@ -359,10 +359,11 @@ class QrFrameAnalyzer(
             val crops = if (lockedDual && previousTiles.size == 2) {
                 previousTiles.map { ScanLayout.inflateRect(it, 1.22f, luma.width, luma.height) }
             } else if (lockedQuad && quadFullRefresh60.get()) {
-                // Full-refresh 60 FPS is sensitive to one bad early calibration.
-                // Keep four isolated, deterministic slots on the hot path; the
-                // tracked geometry remains useful for diagnostics and reacquisition.
-                quadTileGrid(luma.width, luma.height)
+                // A 1920x1440 analysis buffer loses 240 px on each side when split
+                // from centerSquare(). Desktop scans the complete video frame; use
+                // the same full-frame coverage here so edge symbols keep their
+                // complete finder patterns under imperfect camera framing.
+                ScanLayout.coverageQuadrants(luma.width, luma.height)
             } else {
                 previousTiles
             }
